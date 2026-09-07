@@ -172,6 +172,20 @@ zur Laufzeit gebraucht wird. Er übersetzt jede Datei einzeln mit
 `godot --check-only`; Meldungen, die nur an den zur Prüfzeit fehlenden Autoloads
 hängen, werden herausgefiltert.
 
+### Fehlerberichte
+
+Das Spiel schreibt jeden Lauf mit. Die Protokolle liegen unter:
+
+```
+%APPDATA%\Godot\app_userdata\4cats\logs\        # Windows
+~/.local/share/godot/app_userdata/4cats/logs/   # Linux
+```
+
+`godot.log` ist der letzte Lauf, daneben liegen die vorherigen mit Zeitstempel.
+Wer einen Fehler meldet, hängt am besten die passende Datei an – Godots
+Standard von fünf aufbewahrten Protokollen ist bewusst auf 30 erhöht, damit sie
+nicht weggerollt sind, bevor jemand nachsehen kann.
+
 ### Bauen
 
 Godot legt Zielordner nicht selbst an – vorher anlegen.

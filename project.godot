@@ -97,6 +97,14 @@ anti_aliasing/quality/msaa_2d=0
 
 common/physics_ticks_per_second=60
 
+[debug]
+
+# Godot behaelt standardmaessig nur fuenf Protokolle. Bei einem Fehlerbericht
+# sind die entscheidenden Zeilen dann oft schon weggerollt, bevor jemand
+# nachsehen kann. Dreissig kosten fast nichts und reichen fuer mehrere Tage.
+file_logging/enable_file_logging=true
+file_logging/max_log_files=30
+
 [audio]
 
 buses/default_bus_layout="res://assets/audio/default_bus_layout.tres"

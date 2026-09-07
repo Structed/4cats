@@ -37,6 +37,14 @@ instructions: |
   - **--smoketest** klickt durch alle Szenen und Menues und deckt damit
     Laufzeitfehler auf, die nur bei Bedienung auftreten.
 
+  ## Fehlerberichte
+
+  Das Spiel schreibt jeden Lauf nach
+  `%APPDATA%\Godot\app_userdata\4cats\logs\` (`godot.log` ist der letzte Lauf).
+  Bei einer Meldung wie "es gibt Skriptfehler" lohnt der Blick dorthin, bevor
+  man raet -- die Protokolle enthalten die vollstaendige Fehlerausgabe samt
+  Aufrufliste.
+
   ## Tempo-Werte haengen zusammen
 
   Das Rettungs-Gameplay steht und faellt mit dem Verhaeltnis dieser Konstanten:
