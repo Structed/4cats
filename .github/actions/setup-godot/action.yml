@@ -1,0 +1,45 @@
+# Holt Godot samt Export-Vorlagen und legt die Binary in den PATH.
+# Mehrere Workflows brauchen denselben Unterbau -- deshalb einmal hier.
+
+name: Godot einrichten
+description: Installiert Godot samt Export-Vorlagen und macht die Binary als "godot" verfuegbar.
+
+inputs:
+  version:
+    description: Godot-Version ohne Suffix, zum Beispiel 4.7.2
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Godot und Export-Vorlagen zwischenspeichern
+      id: cache-godot
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/godot
+          ~/.local/share/godot/export_templates
+        key: godot-${{ inputs.version }}
+
+    - name: Godot installieren
+      if: steps.cache-godot.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        GODOT_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+        mkdir -p ~/godot
+        curl -fsSL -o /tmp/godot.zip "${base}/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+        unzip -q /tmp/godot.zip -d ~/godot
+        mv ~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64 ~/godot/godot
+        chmod +x ~/godot/godot
+
+        curl -fsSL -o /tmp/templates.tpz "${base}/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+        unzip -q /tmp/templates.tpz -d /tmp/templates
+        mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+        mv /tmp/templates/templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+
+    - name: Godot zum Pfad hinzufuegen
+      shell: bash
+      run: echo "$HOME/godot" >> "$GITHUB_PATH"

@@ -1,0 +1,106 @@
+name: Android
+
+# Ein gemergter Pull Request soll ein installierbares APK hinterlassen.
+# Der Lauf haengt am geschlossenen PR (nicht am Push auf main), damit direkte
+# Pushes ohne PR keinen Build ausloesen.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  apk:
+    name: APK bauen
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+        with:
+          # Genau der Stand, der durch den Merge entstanden ist.
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Godot einrichten
+        uses: ./.github/actions/setup-godot
+        with:
+          version: ${{ env.GODOT_VERSION }}
+
+      - name: Android SDK prüfen
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_HOME:-}" ] || [ ! -d "${ANDROID_HOME}/build-tools" ]; then
+            echo "Kein Android SDK mit build-tools gefunden (ANDROID_HOME='${ANDROID_HOME:-}')." >&2
+            echo "Godot braucht apksigner und zipalign daraus, um das APK zu signieren." >&2
+            exit 1
+          fi
+          ls -1 "${ANDROID_HOME}/build-tools"
+
+      - name: Debug-Keystore erzeugen
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -v \
+            -keystore "${RUNNER_TEMP}/debug.keystore" \
+            -alias androiddebugkey \
+            -storepass android -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Godot-Editor-Einstellungen schreiben
+        run: |
+          set -euo pipefail
+          # Godot sucht SDK und JDK in den Editor-Einstellungen; der Dateiname
+          # traegt Major.Minor der Godot-Version.
+          settings=~/.config/godot/editor_settings-${GODOT_VERSION%.*}.tres
+          mkdir -p ~/.config/godot
+          cat > "${settings}" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "${ANDROID_HOME}"
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          EOF
+          cat "${settings}"
+
+      - name: Ressourcen importieren
+        run: godot --headless --path . --import
+
+      - name: Android-Fassung bauen
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ runner.temp }}/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          set -euo pipefail
+          mkdir -p build/android
+          godot --headless --path . --export-debug "Android" build/android/4cats.apk
+
+      - name: APK als Artefakt ablegen
+        uses: actions/upload-artifact@v4
+        with:
+          name: 4cats-android-pr${{ github.event.pull_request.number }}
+          path: build/android/4cats.apk
+          if-no-files-found: error
+
+      - name: Zusammenfassung schreiben
+        run: |
+          set -euo pipefail
+          size=$(du -h build/android/4cats.apk | cut -f1)
+          {
+            echo "## Android-Fassung"
+            echo
+            echo "- Artefakt: \`4cats-android-pr${{ github.event.pull_request.number }}\` (oben unter \"Artifacts\" herunterladbar)"
+            echo "- Datei: \`4cats.apk\` (${size})"
+            echo "- Signatur: Debug-Keystore -- zum Testen installierbar, nicht zur Veroeffentlichung"
+          } >> "$GITHUB_STEP_SUMMARY"
