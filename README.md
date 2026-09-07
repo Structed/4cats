@@ -67,7 +67,9 @@ assets/                  Grafik und Ton (siehe CREDITS.md)
 tools/                   Skripte zum Bauen, Prüfen und Erzeugen von Assets
 .github/
   github-app.yml         Projekteinstellungen für die GitHub-Copilot-App
+  actions/setup-godot/   Godot samt Export-Vorlagen in CI installieren
   workflows/ci.yml       Prüfen und Bauen bei jedem Push
+  workflows/android.yml  APK bauen, sobald ein Pull Request gemergt wurde
 ```
 
 ### Technische Eckdaten
@@ -221,6 +223,23 @@ pwsh tools/godot.ps1 --headless --path . --export-release "Android" build/androi
 > Das Export-Profil baut für `arm64-v8a` und `armeabi-v7a`. Für einen x86_64-
 > Emulator muss `architectures/x86_64` in `export_presets.cfg` vorübergehend
 > auf `true` gesetzt werden.
+
+### Automatische Builds
+
+| Wann | Workflow | Ergebnis |
+|---|---|---|
+| Jeder Push und jeder Pull Request | `ci.yml` | Alle Prüfungen, dazu die Windows-Fassung als Artefakt `4cats-windows` |
+| Sobald ein Pull Request **gemergt** wird | `android.yml` | APK als Artefakt `4cats-android-pr<Nummer>` |
+
+Das APK liegt im jeweiligen Lauf unter **Actions → Android → Artifacts** und ist
+mit einem in der Aktion erzeugten **Debug-Keystore** signiert: installierbar zum
+Ausprobieren, aber nicht zur Veröffentlichung geeignet. Dafür bleibt es beim
+eigenen Release-Keystore aus dem Abschnitt oben – dessen Passwörter haben in
+einem öffentlichen Build nichts zu suchen.
+
+Beide Workflows holen Godot über dieselbe Aktion `.github/actions/setup-godot`.
+Eine neue Godot-Version wird deshalb nur in `GODOT_VERSION` der beiden Workflows
+geändert, nicht in der Installationslogik.
 
 ### GitHub-Copilot-App
 
