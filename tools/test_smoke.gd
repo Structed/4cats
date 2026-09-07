@@ -364,12 +364,17 @@ func _test_rescue() -> void:
 
 	# Schreck: eine Katze entwischt und wird neu ausgesetzt.
 	var before := GameState.carried_cats.size()
+	var cats_before := get_tree().get_nodes_in_group("cats").size()
 	var lost := player.startle()
 	_check(lost != null, "Ein Schreck laesst eine Katze entwischen")
 	if lost != null:
 		level.call("on_cat_escaped", lost, player.global_position)
 		await _wait(0.2)
 		_check(GameState.carried_cats.size() == before - 1, "Der Korb enthaelt danach eine weniger")
+		# Das Aussetzen laeuft verzoegert (Physik-Rueckruf) -- es muss trotzdem
+		# tatsaechlich passieren.
+		_check(get_tree().get_nodes_in_group("cats").size() == cats_before + 1,
+			"Die entwischte Katze streunt wieder im Level")
 
 	# Waehrend der Betaeubung darf ein zweiter Schreck nichts tun.
 	var during_stun := player.startle()

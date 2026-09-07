@@ -143,7 +143,17 @@ func _on_home_zone_entered(body: Node2D) -> void:
 
 
 ## Eine getragene Katze ist entwischt und streunt wieder im Level.
+##
+## Aufrufer sind Auto und Hund, also Kollisionsrueckrufe. Waehrend Godot die
+## Physikabfragen abarbeitet, darf kein Koerper in den Raum eingehaengt werden
+## ("Can't change this state while flushing queries") -- das Aussetzen wartet
+## deshalb bis zum Ende des Physikschritts.
 func on_cat_escaped(data: CatData, origin: Vector2) -> void:
+	_spawn_escaped_cat.call_deferred(data, origin)
+	_hud.call("set_hint", "Oje, %s ist erschrocken und weggelaufen!" % data.cat_name)
+
+
+func _spawn_escaped_cat(data: CatData, origin: Vector2) -> void:
 	var cat: Cat = CAT_SCENE.instantiate()
 	cat.data = data
 	cat.position = origin + Vector2(randf_range(-14.0, 14.0), randf_range(-14.0, 14.0))
@@ -151,7 +161,6 @@ func on_cat_escaped(data: CatData, origin: Vector2) -> void:
 	cat.set_player(_player)
 	cat.set_bounds(Rect2(Vector2(8, 8), _generator.world_size() - Vector2(16, 16)))
 	cat.scatter_from(origin)
-	_hud.call("set_hint", "Oje, %s ist erschrocken und weggelaufen!" % data.cat_name)
 
 
 ## Wird vom HUD-Knopf „Nach Hause“ genutzt.
