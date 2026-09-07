@@ -13,8 +13,11 @@ oder mit Tastatur bedienbar.
 ## Spielablauf
 
 1. **Rausgehen**: Ein prozedural erzeugtes Viertel mit Straßen, Häusern und Bäumen.
-2. **Katzen finden**: Nähere dich *langsam* – wer rennt, verschreckt die Katze.
-   Über der Katze füllt sich ein Vertrauensbalken; ist er voll, kannst du sie aufheben.
+2. **Katzen finden**: Geh in normalem Tempo hin und warte einen Moment – über
+   der Katze füllt sich ein Vertrauensbalken. Ist er voll, kannst du sie
+   aufheben. Nur **Rennen** (`Shift`) verschreckt Katzen; eine aufgeschreckte
+   Katze läuft kurz weg, beruhigt sich aber wieder und behält einen Teil ihres
+   Vertrauens. Fliehen ist langsamer als Gehen, du holst sie also immer ein.
 3. **Gefahren**: Autos fahren die Straßen entlang, Hunde streunen herum. Wer
    erschrickt, verliert eine getragene Katze – sie läuft weg, mehr passiert nicht.
    Es gibt **kein Zeitlimit** und man kann nicht verlieren.
@@ -29,10 +32,15 @@ oder mit Tastatur bedienbar.
 
 | Aktion | PC | Touch |
 |---|---|---|
-| Bewegen | `WASD` / Pfeiltasten | Virtueller Joystick links (erscheint unter dem Daumen) |
+| Gehen | `WASD` / Pfeiltasten | Virtueller Joystick links (erscheint unter dem Daumen) |
+| Rennen | `Shift` halten | Knopf „Rennen" rechts (Umschalter) |
 | Katze aufheben | `E` oder `Leertaste` | Knopf rechts unten |
 | Pause | `Esc` | – |
 | Menüs | Maus | Tippen |
+
+**Wichtig:** Normales Gehen ist ruhig genug – Katzen fassen dabei Vertrauen.
+Nur **Rennen** verschreckt sie. Es lohnt sich also, für die letzten Meter vom
+Sprint auf Gehen zu wechseln.
 
 Die Touch-Bedienung erscheint automatisch auf Geräten mit Touchscreen. Zum Testen
 am PC lässt sie sich unter **Optionen → Touch-Steuerung immer zeigen** erzwingen.
@@ -125,6 +133,9 @@ pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
 # Spiellogik testen (Retten, Pflegen, Vermitteln, Speichern, Levelaufbau)
 pwsh tools/godot.ps1 --headless --path . -- --test
 
+# Spieltest: laesst den Spieler wirklich eine Katze einfangen
+pwsh tools/godot.ps1 --headless --path . -- --playtest
+
 # Übersichtsbild eines erzeugten Viertels
 pwsh tools/godot.ps1 --headless --path . --script res://tools/preview_level.gd -- --out=level.png
 
@@ -133,6 +144,12 @@ pwsh tools/screenshot.ps1 -Scene home -OutputPath shot.png -Demo
 ```
 
 Beide Prüfungen geben bei Fehlern Exit-Code 1 zurück und laufen so auch in CI.
+
+Der **Spieltest** ist die wichtigste Absicherung für das Rettungs-Gameplay: Er
+lädt das echte Level und lässt den Spieler mit echter Physik eine Katze
+einfangen. Reine Konstanten-Tests hätten den ursprünglichen Fehler nicht
+gefunden – dass der Spieler schneller lief als das Ruhe-Limit der Katzen und
+damit *jede* Katze sofort floh.
 
 ### Bauen
 

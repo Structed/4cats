@@ -9,7 +9,7 @@
 extends SceneTree
 
 const REQUIRED_ACTIONS: PackedStringArray = [
-	"move_left", "move_right", "move_up", "move_down", "interact", "pause",
+	"move_left", "move_right", "move_up", "move_down", "interact", "sprint", "pause",
 ]
 
 const REQUIRED_AUTOLOADS: PackedStringArray = [

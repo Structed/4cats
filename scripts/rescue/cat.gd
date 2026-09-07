@@ -1,8 +1,10 @@
 ## Eine Streunerkatze in der Rettungs-Phase.
 ##
-## Verhalten in Kurzform: Die Katze streunt herum. Naehert sich der Spieler,
-## wird sie aufmerksam. Bewegt er sich dabei hektisch, flieht sie. Bleibt er
-## ruhig, fasst sie Vertrauen -- und laesst sich schliesslich aufheben.
+## Verhalten in Kurzform: Die Katze streunt herum. Naehert sich der Spieler in
+## normalem Gehtempo, fasst sie Vertrauen und laesst sich schliesslich aufheben.
+## Nur wer sprintet, erschreckt sie -- dann laeuft sie ein Stueck weg, beruhigt
+## sich aber wieder. Fliehen ist absichtlich langsamer als Gehen, damit man eine
+## aufgeschreckte Katze immer wieder einholen kann.
 class_name Cat
 extends CharacterBody2D
 
@@ -12,22 +14,28 @@ signal picked_up(cat: Cat)
 enum State { WANDER, ALERT, FLEE, TRUSTING }
 
 const WANDER_SPEED := 18.0
-const FLEE_SPEED := 64.0
+
+## Bewusst unter Player.WALK_SPEED -- eine Katze muss einholbar bleiben.
+const FLEE_SPEED := 44.0
 
 ## Ab dieser Naehe reagiert die Katze ueberhaupt auf den Spieler.
-const NOTICE_RADIUS := 60.0
+const NOTICE_RADIUS := 64.0
 
 ## So nah muss man sein, damit Vertrauen waechst.
-const TRUST_RADIUS := 34.0
+const TRUST_RADIUS := 40.0
 
-## Ueber dieser Geschwindigkeit gilt der Spieler als hektisch.
-const CALM_SPEED_LIMIT := 34.0
+## Ueber dieser Geschwindigkeit gilt der Spieler als hektisch. Liegt zwischen
+## Geh- und Sprinttempo: gemuetlich gehen ist immer in Ordnung.
+const CALM_SPEED_LIMIT := 80.0
+
+## So lange rennt eine aufgeschreckte Katze, danach beruhigt sie sich.
+const FLEE_DURATION := 1.1
 
 ## Vertrauen ab diesem Wert reicht zum Aufheben.
 const TRUST_THRESHOLD := 1.0
 
-const TRUST_GAIN := 0.55
-const TRUST_LOSS := 0.9
+const TRUST_GAIN := 0.85
+const TRUST_LOSS := 0.7
 
 const FRAME_TIME := 0.22
 
@@ -45,6 +53,7 @@ var trust: float = 0.0
 var _player: Player
 var _wander_target: Vector2
 var _wander_timer: float = 0.0
+var _flee_timer: float = 0.0
 var _facing: String = "down"
 var _frame_timer: float = 0.0
 var _frame_index: int = 0
@@ -88,7 +97,9 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_clamp_to_bounds()
 	_animate(delta)
-	_trust_bar.visible = trust > 0.05 and state != State.FLEE
+	# Waehrend der Flucht bleibt der Balken sichtbar -- so sieht man, dass das
+	# Vertrauen nicht komplett verloren ist und ein zweiter Versuch lohnt.
+	_trust_bar.visible = trust > 0.05
 	_trust_bar.queue_redraw()
 
 
@@ -97,8 +108,16 @@ func _update_state(delta: float) -> void:
 		state = State.WANDER
 		return
 
+	# Eine aufgeschreckte Katze rennt erst ihre Panik ab. Ohne diesen Timer
+	# bliebe sie im Fluchtzustand, solange der Spieler in der Naehe ist --
+	# und liefe damit bis ans Levelende.
+	if _flee_timer > 0.0:
+		_flee_timer -= delta
+		state = State.FLEE
+		return
+
 	var distance := global_position.distance_to(_player.global_position)
-	var player_speed := _player.velocity.length()
+	var startling := _player.velocity.length() > CALM_SPEED_LIMIT
 
 	if distance > NOTICE_RADIUS:
 		state = State.WANDER
@@ -106,14 +125,16 @@ func _update_state(delta: float) -> void:
 		trust_changed.emit(trust)
 		return
 
-	if player_speed > CALM_SPEED_LIMIT and distance < TRUST_RADIUS:
-		# Zu hektisch -- die Katze nimmt Reissaus.
+	if startling and distance < TRUST_RADIUS:
+		# Zu hektisch -- die Katze nimmt kurz Reissaus.
+		_flee_timer = FLEE_DURATION
 		state = State.FLEE
-		trust = maxf(trust - TRUST_LOSS * delta, 0.0)
+		# Vertrauen faellt spuerbar, aber nicht auf null: die Muehe bleibt.
+		trust = maxf(trust - 0.35, 0.0)
 		trust_changed.emit(trust)
 		return
 
-	if distance <= TRUST_RADIUS and player_speed <= CALM_SPEED_LIMIT:
+	if distance <= TRUST_RADIUS and not startling:
 		var gain := TRUST_GAIN * (1.0 - 0.6 * _effective_shyness()) * delta
 		trust = minf(trust + gain, TRUST_THRESHOLD)
 		state = State.TRUSTING if is_catchable() else State.ALERT
@@ -176,14 +197,21 @@ func pick_up() -> bool:
 	return true
 
 
-## Setzt eine entwischte Katze wieder aus.
+## Setzt eine erschrockene Katze in Bewegung, weg von `origin`.
+## Wird von Hunden und von entwischten Katzen genutzt.
 func scatter_from(origin: Vector2) -> void:
-	trust = 0.0
+	# Nicht bei jedem Frame neu erschrecken -- sonst haelt ein danebenstehender
+	# Hund die Katze dauerhaft auf Vertrauen null.
+	if _flee_timer > 0.0:
+		return
+	trust = maxf(trust - 0.5, 0.0)
+	trust_changed.emit(trust)
+	_flee_timer = FLEE_DURATION
 	state = State.FLEE
 	var away := (global_position - origin)
 	if away.is_zero_approx():
 		away = Vector2.RIGHT.rotated(randf() * TAU)
-	velocity = away.normalized() * FLEE_SPEED * 1.6
+	velocity = away.normalized() * FLEE_SPEED
 
 
 func _animate(delta: float) -> void:

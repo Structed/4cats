@@ -20,10 +20,27 @@ instructions: |
 
       pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
       pwsh tools/godot.ps1 --headless --path . -- --test
+      pwsh tools/godot.ps1 --headless --path . -- --playtest
 
   Die erste Pruefung deckt Eingaben, Autoloads, Szenen und Renderer ab, die
   zweite die Spiellogik (Tragen, Pflege, Vermittlung, Ausbauten, Speichern,
-  Levelaufbau). Beide geben bei Fehlern Exit-Code 1 zurueck.
+  Levelaufbau). Der Spieltest laedt das echte Level und faengt mit echter Physik
+  eine Katze -- er ist Pflicht nach jeder Aenderung am Rettungs-Gameplay. Alle
+  drei geben bei Fehlern Exit-Code 1 zurueck.
+
+  ## Tempo-Werte haengen zusammen
+
+  Das Rettungs-Gameplay steht und faellt mit dem Verhaeltnis dieser Konstanten:
+
+      Player.WALK_SPEED   <  Cat.CALM_SPEED_LIMIT   (sonst fliehen Katzen immer)
+      Player.SPRINT_SPEED >  Cat.CALM_SPEED_LIMIT   (sonst hat Rennen keine Folgen)
+      Cat.FLEE_SPEED      <  Player.WALK_SPEED      (Katzen muessen einholbar sein)
+      Cat.FLEE_SPEED * Cat.FLEE_DURATION > Dog.SCARE_RADIUS
+
+  Wer einen dieser Werte anfasst, prueft die anderen mit. `_test_movement_balance`
+  in tools/test_gameplay.gd sichert genau das ab -- der urspruengliche Fehler war,
+  dass der Spieler schneller lief als das Ruhe-Limit und damit *keine* Katze je
+  Vertrauen fassen konnte.
 
   Wer die Optik aendert, sollte das Ergebnis auch ansehen:
 
@@ -62,6 +79,11 @@ instructions: |
   Tasten oder Beruehrungen auswerten. Das Touch-Overlay blendet sich selbst ein,
   wenn ein Touchscreen vorhanden ist; in den Optionen laesst es sich fuer Tests
   am PC erzwingen.
+
+  Achtung bei Geschwindigkeiten: Mit Tastatur liefert `Input.get_vector` immer
+  volle Auslenkung. Eine Spielmechanik darf deshalb nie verlangen, dass der
+  Spieler "langsam" geht -- das waere nur mit Joystick moeglich. Stattdessen
+  gibt es die Aktion `sprint` als bewusste Entscheidung.
 
   ## Sprache
 
@@ -108,6 +130,9 @@ scripts:
 
   - name: Tests
     command: pwsh tools/godot.ps1 --headless --path . -- --test
+
+  - name: Spieltest (Katze wirklich einfangen)
+    command: pwsh tools/godot.ps1 --headless --path . -- --playtest
 
   - name: Projektkonfiguration pruefen
     command: pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd

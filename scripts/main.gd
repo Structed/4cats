@@ -20,6 +20,7 @@ const START_SCENES := {
 
 const SCREENSHOT_CAPTURE_PATH := "res://scripts/dev/screenshot_capture.gd"
 const GAMEPLAY_TESTS_PATH := "res://tools/test_gameplay.gd"
+const PLAYTHROUGH_TEST_PATH := "res://tools/test_playthrough.gd"
 const DEMO_DATA_PATH := "res://scripts/dev/demo_data.gd"
 
 
@@ -29,8 +30,10 @@ func _ready() -> void:
 	# Einen Frame warten, damit alle Autoloads sicher initialisiert sind.
 	await get_tree().process_frame
 
-	# Der Testlauf ersetzt den normalen Start.
+	# Die Testlaeufe ersetzen den normalen Start.
 	if _has_argument("--test") and _spawn_dev_node(GAMEPLAY_TESTS_PATH) != null:
+		return
+	if _has_argument("--playtest") and _spawn_dev_node(PLAYTHROUGH_TEST_PATH) != null:
 		return
 
 	if _has_argument("--demo"):

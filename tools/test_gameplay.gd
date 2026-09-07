@@ -20,6 +20,7 @@ func _ready() -> void:
 ## Fuehrt alle Tests aus und beendet das Programm mit passendem Exit-Code.
 func run_all() -> void:
 	_test_cat_data()
+	_test_movement_balance()
 	_test_carrying()
 	_test_care_and_adoption()
 	_test_upgrades()
@@ -46,6 +47,51 @@ func _check(condition: bool, description: String) -> void:
 
 
 # --- Tests -------------------------------------------------------------------
+
+## Die Tempo-Werte muessen zueinander passen, sonst ist das Spiel unspielbar.
+## Genau hier lag der urspruengliche Fehler: der Spieler war schneller als das
+## Ruhe-Limit der Katzen, dadurch flohen sie *immer* und Vertrauen konnte nie
+## wachsen.
+func _test_movement_balance() -> void:
+	print("--- Tempo-Verhaeltnisse ---")
+
+	_check(Player.WALK_SPEED < Cat.CALM_SPEED_LIMIT,
+		"Gehen (%.0f) bleibt unter dem Ruhe-Limit (%.0f) -- sonst fliehen Katzen immer"
+			% [Player.WALK_SPEED, Cat.CALM_SPEED_LIMIT])
+
+	_check(Player.SPRINT_SPEED > Cat.CALM_SPEED_LIMIT,
+		"Sprinten (%.0f) liegt ueber dem Ruhe-Limit (%.0f) -- sonst hat Rennen keine Folgen"
+			% [Player.SPRINT_SPEED, Cat.CALM_SPEED_LIMIT])
+
+	_check(Cat.FLEE_SPEED < Player.WALK_SPEED,
+		"Fliehen (%.0f) ist langsamer als Gehen (%.0f) -- eine Katze muss einholbar sein"
+			% [Cat.FLEE_SPEED, Player.WALK_SPEED])
+
+	_check(Cat.WANDER_SPEED < Cat.FLEE_SPEED, "Streunen ist gemuetlicher als Fliehen")
+
+	_check(Cat.TRUST_RADIUS <= Cat.NOTICE_RADIUS,
+		"Vertrauensradius liegt innerhalb des Aufmerksamkeitsradius")
+
+	_check(Cat.FLEE_DURATION > 0.0 and Cat.FLEE_DURATION < 3.0,
+		"Panik dauert %.1f s -- lang genug zum Wegkommen, kurz genug zum Wiederkommen"
+			% Cat.FLEE_DURATION)
+
+	# Eine fliehende Katze muss den Schreckbereich eines Hundes verlassen
+	# koennen, sonst wird sie sofort wieder aufgeschreckt und bleibt fuer
+	# immer unfangbar.
+	var flee_distance := Cat.FLEE_SPEED * Cat.FLEE_DURATION
+	_check(flee_distance > Dog.SCARE_RADIUS,
+		"Eine Flucht traegt %.0f px und damit aus dem Hunde-Radius (%.0f) heraus"
+			% [flee_distance, Dog.SCARE_RADIUS])
+
+	# Wie lange dauert es, eine ruhige Katze zu gewinnen? Der Wert soll sich
+	# nach Zuwendung anfuehlen, nicht nach Warteschleife.
+	var seconds_shy := Cat.TRUST_THRESHOLD / (Cat.TRUST_GAIN * (1.0 - 0.6 * 1.0))
+	var seconds_bold := Cat.TRUST_THRESHOLD / Cat.TRUST_GAIN
+	print("  Vertrauen dauert %.1f s (zutraulich) bis %.1f s (sehr scheu)"
+		% [seconds_bold, seconds_shy])
+	_check(seconds_shy < 8.0, "Auch die scheuste Katze ist in unter 8 s gewonnen")
+
 
 func _test_cat_data() -> void:
 	print("--- Katzendaten ---")

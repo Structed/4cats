@@ -14,6 +14,7 @@ const SETTING_KEY := "force_touch_controls"
 
 @onready var _joystick: TouchJoystick = $Root/Joystick
 @onready var _action_button: Button = $Root/ActionButton
+@onready var _sprint_button: Button = $Root/SprintButton
 
 var _forced: bool = false
 
@@ -25,6 +26,9 @@ func _ready() -> void:
 
 	_action_button.button_down.connect(_on_action_down)
 	_action_button.button_up.connect(_on_action_up)
+	# Umschalter statt Halten: einen zweiten Finger dauerhaft aufzulegen ist
+	# beim Spielen mit dem Daumen unbequem.
+	_sprint_button.toggled.connect(_on_sprint_toggled)
 
 
 ## Blendet die Touch-Bedienung dauerhaft ein oder aus.
@@ -51,6 +55,7 @@ func _apply_visibility() -> void:
 	var show_controls := DisplayServer.is_touchscreen_available() or _forced
 	_joystick.visible = show_controls
 	_action_button.visible = show_controls
+	_sprint_button.visible = show_controls
 
 
 func _on_action_down() -> void:
@@ -64,7 +69,17 @@ func _on_action_up() -> void:
 		Input.action_release("interact")
 
 
+func _on_sprint_toggled(pressed: bool) -> void:
+	if not InputMap.has_action("sprint"):
+		return
+	if pressed:
+		Input.action_press("sprint")
+	elif Input.is_action_pressed("sprint"):
+		Input.action_release("sprint")
+
+
 func _exit_tree() -> void:
-	# Keine haengende Aktion zuruecklassen.
-	if InputMap.has_action("interact") and Input.is_action_pressed("interact"):
-		Input.action_release("interact")
+	# Keine haengenden Aktionen zuruecklassen.
+	for action in ["interact", "sprint"]:
+		if InputMap.has_action(action) and Input.is_action_pressed(action):
+			Input.action_release(action)

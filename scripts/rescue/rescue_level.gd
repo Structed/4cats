@@ -46,7 +46,7 @@ func _ready() -> void:
 	# Der Touch-Aktionsknopf setzt nur den Aktionszustand, erzeugt aber kein
 	# Eingabeereignis -- deshalb hier zusaetzlich direkt verbinden.
 	_touch_controls.connect("action_pressed", _try_pick_up)
-	_hud.call("set_hint", "Nähere dich langsam, dann fasst die Katze Vertrauen.")
+	_hud.call("set_hint", "Geh zu einer Katze und warte kurz – nur Rennen verschreckt sie.")
 
 
 func _unhandled_input(event: InputEvent) -> void:

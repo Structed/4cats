@@ -55,6 +55,9 @@ jobs:
       - name: Spiellogik testen
         run: godot --headless --path . -- --test
 
+      - name: Spieltest (Katze wirklich einfangen)
+        run: godot --headless --path . -- --playtest
+
       - name: Windows-Fassung bauen
         run: |
           mkdir -p build/windows

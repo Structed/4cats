@@ -7,7 +7,12 @@ class_name Dog
 extends CharacterBody2D
 
 const SPEED := 34.0
-const SCARE_RADIUS := 52.0
+
+## Muss kleiner sein als die Strecke, die eine Katze in einer Fluchtphase
+## zuruecklegt (Cat.FLEE_SPEED * Cat.FLEE_DURATION). Sonst rennt sie los,
+## bleibt im Radius und wird sofort wieder aufgeschreckt -- damit waere sie
+## dauerhaft unfangbar.
+const SCARE_RADIUS := 36.0
 
 ## Der Hund bleibt in der Naehe seines Startpunktes.
 const ROAM_RADIUS := 90.0

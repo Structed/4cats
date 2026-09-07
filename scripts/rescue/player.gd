@@ -3,16 +3,25 @@
 ## Bewegt sich in vier Richtungen, sammelt Katzen ein und traegt sie sichtbar
 ## ueber dem Kopf. Die Eingabe kommt immer aus der InputMap -- Tastatur und
 ## virtueller Joystick landen dort gleichermassen.
+##
+## Normales Gehen ist ruhig genug, dass Katzen Vertrauen fassen. Wer schneller
+## vorankommen will, sprintet -- das verschreckt sie aber. So bleibt die Wahl
+## beim Spieler, statt ihn zu zwingen, den Joystick millimetergenau zu halten.
 class_name Player
 extends CharacterBody2D
 
 signal carry_visual_changed()
 
-const SPEED := 78.0
+## Gehtempo. Muss unter Cat.CALM_SPEED_LIMIT liegen, sonst fliehen alle Katzen.
+const WALK_SPEED := 62.0
+
+## Sprinttempo. Deutlich ueber dem Ruhe-Limit -- das schreckt Katzen auf.
+const SPRINT_SPEED := 108.0
+
 const ACCELERATION := 900.0
 const FRICTION := 1100.0
 
-## Sekunden pro Laufbild.
+## Sekunden pro Laufbild beim Gehen; beim Sprinten entsprechend schneller.
 const FRAME_TIME := 0.14
 
 ## So lange ist der Spieler nach einem Schreck unverwundbar.
@@ -26,6 +35,7 @@ var _facing: String = "down"
 var _frame_timer: float = 0.0
 var _frame_index: int = 0
 var _stun_timer: float = 0.0
+var _sprinting: bool = false
 
 var _atlas: AtlasTexture
 
@@ -51,13 +61,25 @@ func _physics_process(delta: float) -> void:
 	if input.length() > 1.0:
 		input = input.normalized()
 
+	_sprinting = Input.is_action_pressed("sprint") and not input.is_zero_approx()
+
 	if input.is_zero_approx():
 		velocity = velocity.move_toward(Vector2.ZERO, FRICTION * delta)
 	else:
-		velocity = velocity.move_toward(input * SPEED, ACCELERATION * delta)
+		velocity = velocity.move_toward(input * current_speed(), ACCELERATION * delta)
 
 	move_and_slide()
 	_animate(delta, input)
+
+
+## Aktuelles Hoechsttempo -- je nachdem, ob gesprintet wird.
+func current_speed() -> float:
+	return SPRINT_SPEED if _sprinting else WALK_SPEED
+
+
+## Sprintet der Spieler gerade? Katzen lesen daran ab, ob sie erschrecken.
+func is_sprinting() -> bool:
+	return _sprinting
 
 
 func _animate(delta: float, input: Vector2) -> void:
@@ -69,8 +91,10 @@ func _animate(delta: float, input: Vector2) -> void:
 			_facing = "down" if input.y > 0.0 else "up"
 
 		_frame_timer += delta
-		if _frame_timer >= FRAME_TIME:
-			_frame_timer -= FRAME_TIME
+		# Beim Sprinten schneller trippeln -- das macht den Zustand sichtbar.
+		var frame_time := FRAME_TIME * 0.6 if _sprinting else FRAME_TIME
+		if _frame_timer >= frame_time:
+			_frame_timer -= frame_time
 			_frame_index = 1 - _frame_index
 		_update_sprite_region(UrbanTiles.CHARACTER_ROW_WALK_A + _frame_index)
 	else:
