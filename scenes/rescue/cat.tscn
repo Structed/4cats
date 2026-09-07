@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/rescue/cat.gd" id="1_cat"]
+[ext_resource type="Script" path="res://scripts/rescue/trust_bar.gd" id="2_trust"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_cat"]
+size = Vector2(9, 5)
+
+[node name="Cat" type="CharacterBody2D"]
+y_sort_enabled = true
+collision_layer = 4
+collision_mask = 1
+motion_mode = 1
+script = ExtResource("1_cat")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+position = Vector2(0, -3)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 4)
+shape = SubResource("RectangleShape2D_cat")
+
+[node name="TrustBar" type="Node2D" parent="."]
+position = Vector2(0, -14)
+script = ExtResource("2_trust")

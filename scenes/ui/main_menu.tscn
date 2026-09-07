@@ -1,0 +1,219 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
+[ext_resource type="Theme" path="res://resources/ui_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/icon/icon.svg" id="3_icon"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.1, 0.12, 0.16, 1)
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_menu")
+[node name="Background" type="Panel" parent="."]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="Center" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -130.0
+offset_top = -160.0
+offset_right = 130.0
+offset_bottom = 160.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 5
+
+[node name="Icon" type="TextureRect" parent="Center"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+texture = ExtResource("3_icon")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Title" type="Label" parent="Center"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "4cats"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Center"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.73, 0.8, 1)
+theme_override_font_sizes/font_size = 12
+text = "Streuner finden, heimbringen, gesund pflegen."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="Gap" type="Control" parent="Center"]
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+
+[node name="ContinueButton" type="Button" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Weiterspielen"
+
+[node name="NewGameButton" type="Button" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Neues Spiel"
+
+[node name="OptionsButton" type="Button" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Optionen"
+
+[node name="QuitButton" type="Button" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Beenden"
+
+[node name="OptionsDim" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.04, 0.05, 0.72)
+
+[node name="OptionsPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -140.0
+offset_top = -120.0
+offset_right = 140.0
+offset_bottom = 120.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="VBoxContainer" parent="OptionsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="OptionsPanel/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Optionen"
+horizontal_alignment = 1
+
+[node name="MasterLabel" type="Label" parent="OptionsPanel/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Gesamtlautstärke"
+
+[node name="MasterSlider" type="HSlider" parent="OptionsPanel/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="SfxLabel" type="Label" parent="OptionsPanel/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Geräusche"
+
+[node name="SfxSlider" type="HSlider" parent="OptionsPanel/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="MusicLabel" type="Label" parent="OptionsPanel/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Musik"
+
+[node name="MusicSlider" type="HSlider" parent="OptionsPanel/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 18)
+layout_mode = 2
+max_value = 1.0
+step = 0.05
+value = 0.7
+
+[node name="TouchCheck" type="CheckButton" parent="OptionsPanel/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Touch-Steuerung immer zeigen"
+
+[node name="OptionsCloseButton" type="Button" parent="OptionsPanel/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Schließen"
+
+[node name="ConfirmDim" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.04, 0.05, 0.72)
+
+[node name="ConfirmPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -130.0
+offset_top = -60.0
+offset_right = 130.0
+offset_bottom = 60.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="VBoxContainer" parent="ConfirmPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Text" type="Label" parent="ConfirmPanel/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Ein neues Spiel überschreibt deinen Spielstand. Wirklich neu anfangen?"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="Buttons" type="HBoxContainer" parent="ConfirmPanel/Box"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ConfirmYesButton" type="Button" parent="ConfirmPanel/Box/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Ja, neu"
+
+[node name="ConfirmNoButton" type="Button" parent="ConfirmPanel/Box/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Abbrechen"

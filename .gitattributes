@@ -1,0 +1,23 @@
+# Standardmaessig Zeilenenden normalisieren.
+* text=auto eol=lf
+
+# Godot-Textformate
+*.gd        text eol=lf
+*.tscn      text eol=lf
+*.tres      text eol=lf
+*.import    text eol=lf
+*.uid       text eol=lf
+*.godot     text eol=lf
+*.cfg       text eol=lf
+
+# PowerShell laeuft unter Windows -- CRLF ist hier bequemer.
+*.ps1       text eol=crlf
+
+# Binaerdateien nicht anfassen.
+*.png       binary
+*.ogg       binary
+*.wav       binary
+*.ttf       binary
+*.otf       binary
+*.apk       binary
+*.exe       binary

@@ -1,0 +1,175 @@
+# Verhalten der GitHub-Copilot-App fuer dieses Projekt.
+# Referenz: https://docs.github.com/copilot/reference/github-copilot-app-reference/repository-configuration
+
+instructions: |
+  4cats ist ein 2D-Spiel aus der Vogelperspektive in **Godot 4.7.2** mit
+  **GDScript**. Kein C#, kein .NET -- auch wenn andere Projekte das bevorzugen.
+
+  ## Godot aufrufen
+
+  Godot liegt in der Regel nicht im PATH. Immer den Resolver benutzen, der die
+  Binary sucht und Argumente unveraendert durchreicht:
+
+      pwsh tools/godot.ps1 --headless --path . -- --test
+
+  Auf Windows waehlt er die Konsolenfassung (..._console.exe); nur sie gibt
+  Ausgaben an die Konsole weiter. Mit der Fenster-Fassung bleiben Testergebnisse
+  und Fehlermeldungen unsichtbar.
+
+  ## Vor "fertig" immer pruefen
+
+      pwsh tools/lint_scripts.ps1
+      pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
+      pwsh tools/godot.ps1 --headless --path . -- --test
+      pwsh tools/godot.ps1 --headless --path . -- --playtest
+      pwsh tools/godot.ps1 --headless --path . -- --smoketest
+
+  Jede Pruefung deckt eine andere Fehlerklasse ab und gibt bei Problemen
+  Exit-Code 1 zurueck:
+
+  - **lint_scripts.ps1** uebersetzt jedes Skript einzeln. Godot meldet
+    Parse-Fehler sonst erst, wenn eine Datei zur Laufzeit gebraucht wird -- ein
+    Fehler in einer selten betretenen Szene faellt damit erst dem Spieler auf.
+  - **check_project.gd** prueft Eingaben, Autoloads, Szenen und Renderer.
+  - **--test** prueft die Regeln und die Tempo-Verhaeltnisse.
+  - **--playtest** faengt mit echter Physik eine Katze. Pflicht nach jeder
+    Aenderung am Rettungs-Gameplay.
+  - **--smoketest** klickt durch alle Szenen und Menues und deckt damit
+    Laufzeitfehler auf, die nur bei Bedienung auftreten.
+
+  ## Fehlerberichte
+
+  Das Spiel schreibt jeden Lauf nach
+  `%APPDATA%\Godot\app_userdata\4cats\logs\` (`godot.log` ist der letzte Lauf).
+  Bei einer Meldung wie "es gibt Skriptfehler" lohnt der Blick dorthin, bevor
+  man raet -- die Protokolle enthalten die vollstaendige Fehlerausgabe samt
+  Aufrufliste.
+
+  ## Tempo-Werte haengen zusammen
+
+  Das Rettungs-Gameplay steht und faellt mit dem Verhaeltnis dieser Konstanten:
+
+      Player.WALK_SPEED   <  Cat.CALM_SPEED_LIMIT   (sonst fliehen Katzen immer)
+      Player.SPRINT_SPEED >  Cat.CALM_SPEED_LIMIT   (sonst hat Rennen keine Folgen)
+      Cat.FLEE_SPEED      <  Player.WALK_SPEED      (Katzen muessen einholbar sein)
+      Cat.FLEE_SPEED * Cat.FLEE_DURATION > Dog.SCARE_RADIUS
+
+  Wer einen dieser Werte anfasst, prueft die anderen mit. `_test_movement_balance`
+  in tools/test_gameplay.gd sichert genau das ab -- der urspruengliche Fehler war,
+  dass der Spieler schneller lief als das Ruhe-Limit und damit *keine* Katze je
+  Vertrauen fassen konnte.
+
+  Wer die Optik aendert, sollte das Ergebnis auch ansehen:
+
+      pwsh tools/screenshot.ps1 -Scene home -OutputPath shot.png -Demo
+      pwsh tools/godot.ps1 --headless --path . --script res://tools/preview_level.gd -- --out=level.png
+
+  Das Uebersichtsbild lohnt sich besonders nach Aenderungen am Level-Generator --
+  ein Fehler dort faellt im Spiel kaum auf, im Gesamtbild sofort.
+
+  ## GDScript in Godot 4.7
+
+  - **Typinferenz aus Variant ist ein Fehler, keine Warnung.** Werte aus
+    Dictionary oder Array brauchen eine ausdrueckliche Annotation:
+    `var x: int = meine_map[key]`, nicht `var x := meine_map[key]`.
+    Das gilt auch fuer `Dictionary.get(...)` und verschachtelte Zugriffe.
+  - Konstante Nachschlagetabellen gehoeren auf Skriptebene (`const`), nicht als
+    Wegwerf-Literal in eine Funktion -- sonst greift genau diese Regel.
+  - **Keine Klassennamen vergeben, die eine eingebaute Klasse verdecken.**
+    `VirtualJoystick` existiert bereits in 4.7; unser Knoten heisst deshalb
+    `TouchJoystick`.
+  - Nach dem Umbenennen oder Verschieben eines Skripts die verwaiste `.uid`
+    aufraeumen und neu importieren, sonst sucht Godot weiter den alten Pfad.
+
+  ## Was nicht ausgeliefert wird
+
+  `scripts/dev/demo_data.gd` und alles unter `tools/` sind vom Export
+  ausgenommen (siehe `export_presets.cfg`). Ausgelieferter Code darf sie
+  deshalb **niemals per `preload` einbinden** -- das bricht erst im fertigen
+  Build, nicht im Editor. `scripts/main.gd` laedt sie bewusst zur Laufzeit und
+  faengt ihr Fehlen ab.
+
+  ## Eingaben
+
+  Tastatur und virtueller Joystick speisen dieselbe InputMap. Neue Steuerung
+  daher immer ueber `Input.get_vector(...)` bzw. Aktionen abfragen, nie direkt
+  Tasten oder Beruehrungen auswerten. Das Touch-Overlay blendet sich selbst ein,
+  wenn ein Touchscreen vorhanden ist; in den Optionen laesst es sich fuer Tests
+  am PC erzwingen.
+
+  Achtung bei Geschwindigkeiten: Mit Tastatur liefert `Input.get_vector` immer
+  volle Auslenkung. Eine Spielmechanik darf deshalb nie verlangen, dass der
+  Spieler "langsam" geht -- das waere nur mit Joystick moeglich. Stattdessen
+  gibt es die Aktion `sprint` als bewusste Entscheidung.
+
+  ## Sprache
+
+  Sichtbare Texte sind **deutsch mit echten Umlauten** ("Münzen", "Zuhause").
+  Kommentare und Dokumentationsbloecke im Code bleiben **ASCII**
+  ("Beduerfnisse") -- so bleiben die Dateien unabhaengig von der Kodierung des
+  Editors lesbar.
+
+  ## Assets
+
+  Grafik und Ton sind **CC0** (Kenney). Es werden nur die tatsaechlich
+  genutzten Dateien eingecheckt, nicht die kompletten Pakete. Neue Assets
+  gehoeren in `tools/install_assets.ps1` und in `CREDITS.md`. Katzen-Sprites,
+  TileSet und Symbole werden erzeugt, nicht von Hand gepflegt:
+
+      pwsh tools/generate_cat_sprites.ps1
+      pwsh tools/generate_tileset.ps1
+      pwsh tools/generate_icons.ps1
+
+  ## Export
+
+  Godot legt Zielordner nicht selbst an -- vorher `mkdir`. Die Release-Fassung
+  fuer Android braucht einen eigenen Keystore ueber
+  `GODOT_ANDROID_KEYSTORE_RELEASE_*`; er gehoert nicht ins Repository.
+  Einzelheiten im README.
+
+scripts:
+  # Der Importordner .godot/ ist nicht eingecheckt. Ein frischer Arbeitsbereich
+  # muss ihn einmal aufbauen -- so faellt ein kaputtes Asset sofort auf und der
+  # erste Spielstart haengt nicht minutenlang im Import.
+  - name: Ressourcen importieren
+    command: pwsh tools/godot.ps1 --headless --path . --import
+    triggers:
+      - session.create
+
+  - name: Spiel starten
+    command: pwsh tools/godot.ps1 --path .
+
+  - name: Rettungs-Level starten
+    command: pwsh tools/godot.ps1 --path . -- --start=rescue
+
+  - name: Zuhause mit Beispieldaten starten
+    command: pwsh tools/godot.ps1 --path . -- --start=home --demo
+
+  - name: Tests
+    command: pwsh tools/godot.ps1 --headless --path . -- --test
+
+  - name: Spieltest (Katze wirklich einfangen)
+    command: pwsh tools/godot.ps1 --headless --path . -- --playtest
+
+  - name: Durchlauf durch alle Szenen
+    command: pwsh tools/godot.ps1 --headless --path . -- --smoketest
+
+  - name: Skripte uebersetzen
+    command: pwsh tools/lint_scripts.ps1
+
+  - name: Projektkonfiguration pruefen
+    command: pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
+
+  - name: Level-Uebersicht erzeugen
+    command: pwsh tools/godot.ps1 --headless --path . --script res://tools/preview_level.gd -- --out=level_overview.png
+
+  - name: Windows-Fassung bauen
+    command: pwsh -NoProfile -Command "New-Item -ItemType Directory -Force -Path build/windows | Out-Null; pwsh tools/godot.ps1 --headless --path . --export-release 'Windows Desktop' build/windows/4cats.exe"
+
+# Das Spiel laeuft als Fenster, nicht als Webserver -- es gibt keine URL, die
+# sich im Browser oeffnen liesse.
+auto_open_in_browser: false
+
+automation:
+  auto_issue_session: true
+  remote_control: false
