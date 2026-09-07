@@ -1,0 +1,34 @@
+# Godot
+.godot/
+.import/
+export.cfg
+export_credentials.cfg
+*.translation
+
+# Godot Android build template (wird bei Bedarf lokal generiert)
+android/
+
+# Build-Ausgaben
+build/
+builds/
+*.apk
+*.aab
+*.exe
+*.pck
+*.zip
+
+# Signaturen -- niemals einchecken
+*.keystore
+*.jks
+*.p12
+*.pepk
+
+# Rohdownloads der Asset-Pakete (nur die genutzten Dateien werden committet)
+assets/_downloads/
+
+# Betriebssystem / Editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

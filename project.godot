@@ -1,0 +1,104 @@
+; Projektkonfiguration fuer 4cats
+; Godot 4.7 -- Dokumentation: https://docs.godotengine.org/en/stable/tutorials/editor/project_settings.html
+
+config_version=5
+
+[application]
+
+config/name="4cats"
+config/description="Ein Katzenrettungs-Spiel aus der Vogelperspektive."
+config/version="0.1.0"
+run/main_scene="res://scenes/main/main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://assets/icon/icon.svg"
+boot_splash/bg_color=Color(0.09, 0.11, 0.14, 1)
+boot_splash/show_image=false
+
+[autoload]
+
+GameState="*res://scripts/autoload/game_state.gd"
+SaveManager="*res://scripts/autoload/save_manager.gd"
+AudioManager="*res://scripts/autoload/audio_manager.gd"
+SceneRouter="*res://scripts/autoload/scene_router.gd"
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=360
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=4
+
+[input]
+
+move_left={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":65,"pressed":false,"script":null)
+, Object(InputEventKey,"device":-1,"physical_keycode":4194319,"pressed":false,"script":null)
+]
+}
+move_right={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":68,"pressed":false,"script":null)
+, Object(InputEventKey,"device":-1,"physical_keycode":4194321,"pressed":false,"script":null)
+]
+}
+move_up={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":87,"pressed":false,"script":null)
+, Object(InputEventKey,"device":-1,"physical_keycode":4194320,"pressed":false,"script":null)
+]
+}
+move_down={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":83,"pressed":false,"script":null)
+, Object(InputEventKey,"device":-1,"physical_keycode":4194322,"pressed":false,"script":null)
+]
+}
+interact={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":69,"pressed":false,"script":null)
+, Object(InputEventKey,"device":-1,"physical_keycode":32,"pressed":false,"script":null)
+]
+}
+pause={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":4194305,"pressed":false,"script":null)
+]
+}
+
+[layer_names]
+
+2d_physics/layer_1="world"
+2d_physics/layer_2="player"
+2d_physics/layer_3="cat"
+2d_physics/layer_4="hazard"
+2d_physics/layer_5="interactable"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=0
+textures/vram_compression/import_etc2_astc=true
+2d/snap/snap_2d_transforms_to_pixel=true
+2d/snap/snap_2d_vertices_to_pixel=true
+anti_aliasing/quality/msaa_2d=0
+
+[physics]
+
+common/physics_ticks_per_second=60
+
+[audio]
+
+buses/default_bus_layout="res://assets/audio/default_bus_layout.tres"
+
+[file_customization]
+
+folder_colors={
+"res://assets/": "orange",
+"res://scenes/": "blue",
+"res://scripts/": "green"
+}

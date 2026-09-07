@@ -1,0 +1,156 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/home/home_scene.gd" id="1_home"]
+[ext_resource type="Theme" path="res://resources/ui_theme.tres" id="2_theme"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.13, 0.15, 0.19, 1)
+
+[node name="HomeScene" type="Control"]
+layout_mode = 3
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_home")
+
+[node name="Background" type="Panel" parent="."]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="Layout" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 8.0
+offset_right = -10.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Layout/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Zuhause"
+
+[node name="Spacer" type="Control" parent="Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CoinLabel" type="Label" parent="Layout/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Münzen: 0"
+
+[node name="StatsLabel" type="Label" parent="Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Gerettet: 0   ·   Vermittelt: 0"
+
+[node name="Toast" type="Label" parent="Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.92, 0.65, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 2
+
+[node name="Scroll" type="ScrollContainer" parent="Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="CatList" type="VBoxContainer" parent="Layout/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="EmptyLabel" type="Label" parent="Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Noch keine Katze da. Geh raus und such welche!"
+horizontal_alignment = 1
+
+[node name="Footer" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RescueButton" type="Button" parent="Layout/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 15
+text = "Rausgehen und suchen"
+
+[node name="ShopButton" type="Button" parent="Layout/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Ausbauen"
+
+[node name="MenuButton" type="Button" parent="Layout/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Hauptmenü"
+
+[node name="ShopDim" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.04, 0.05, 0.72)
+
+[node name="ShopPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -160.0
+offset_right = 160.0
+offset_bottom = 160.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="VBoxContainer" parent="ShopPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="ShopPanel/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Ausbauen"
+horizontal_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="ShopPanel/Box"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ShopList" type="VBoxContainer" parent="ShopPanel/Box/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="ShopCloseButton" type="Button" parent="ShopPanel/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Schließen"
