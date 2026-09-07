@@ -46,7 +46,63 @@ func _run() -> void:
 	await _test_rescue()
 	await _test_scene_transitions()
 	await _test_real_ui_path()
+	await _test_resume_with_save()
 	_finish()
+
+
+# --- Fortsetzen mit vorhandenem Spielstand -----------------------------------
+
+## Wer das Spiel mit Katzen im Tragekorb verlaesst und spaeter weiterspielt,
+## laedt einen Zustand, den keine der obigen Pruefungen herstellt.
+func _test_resume_with_save() -> void:
+	print("--- Weiterspielen mit Spielstand ---")
+
+	# Einen Spielstand bauen, wie er nach echtem Spielen aussieht.
+	GameState.reset()
+	GameState.add_coins(320)
+	GameState.purchase_upgrade("carry_capacity")
+	for i in 3:
+		GameState.pick_up_cat(CatData.create_random())
+	GameState.deliver_carried_cats()
+	# Und zwei Katzen bleiben unterwegs im Korb.
+	for i in 2:
+		GameState.pick_up_cat(CatData.create_random())
+	SaveManager.save_game()
+
+	var carried_before := GameState.carried_cats.size()
+	var home_before := GameState.home_cats.size()
+	var coins_before := GameState.coins
+
+	# So tun, als startete das Spiel frisch.
+	GameState.reset()
+	_check(SaveManager.load_game(), "Der Spielstand laesst sich laden")
+	_check(GameState.carried_cats.size() == carried_before,
+		"Getragene Katzen sind wieder da (%d)" % GameState.carried_cats.size())
+	_check(GameState.home_cats.size() == home_before,
+		"Katzen zu Hause sind wieder da (%d)" % GameState.home_cats.size())
+	_check(GameState.coins == coins_before, "Muenzen stimmen (%d)" % GameState.coins)
+
+	# Mit diesem Zustand ins Zuhause und ins Level -- dabei baut der Spieler
+	# seine getragenen Katzen ueber dem Kopf auf.
+	SceneRouter.goto_home()
+	await _wait_for_scene("HomeScene")
+	_check(get_tree().current_scene != null and get_tree().current_scene.name == "HomeScene",
+		"Das Zuhause oeffnet sich mit geladenem Spielstand")
+
+	SceneRouter.goto_rescue()
+	await _wait_for_scene("RescueLevel")
+	var level := get_tree().current_scene
+	_check(level != null and level.name == "RescueLevel",
+		"Das Level oeffnet sich mit Katzen im Korb")
+	if level == null:
+		return
+
+	var carry_slot: Node2D = level.get_node("Player/CarrySlot")
+	_check(carry_slot.get_child_count() == GameState.carried_cats.size(),
+		"Die getragenen Katzen werden angezeigt (%d)" % carry_slot.get_child_count())
+
+	await _wait(1.0)
+	_check(true, "Das Level laeuft mit geladenem Spielstand weiter")
 
 
 # --- Echter Weg durch die Oberflaeche ----------------------------------------

@@ -2,6 +2,9 @@
 ##
 ## Wird ueber `--demo` eingeschaltet und dient dazu, das Zuhause und die
 ## Pflegekarten ohne vorheriges Spielen ansehen und testen zu koennen.
+##
+## Bewusst ohne class_name: die Datei ist vom Export ausgenommen, eine global
+## registrierte Klasse wuerde im fertigen Build ins Leere zeigen.
 extends Node
 
 const PRESETS: Array[Dictionary] = [
@@ -18,7 +21,7 @@ func _ready() -> void:
 
 
 ## Legt eine Handvoll Katzen in unterschiedlichen Zustaenden zu Hause ab.
-static func populate() -> void:
+func populate() -> void:
 	GameState.reset()
 	GameState.add_coins(180)
 
