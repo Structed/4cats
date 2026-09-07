@@ -118,20 +118,39 @@ pwsh tools/screenshot.ps1 -Scene home -OutputPath shot.png -Demo
 
 ### Bauen
 
+Godot legt Zielordner nicht selbst an – vorher anlegen.
+
 ```powershell
 # Windows
+mkdir build/windows
 godot --headless --path . --export-release "Windows Desktop" build/windows/4cats.exe
 
-# Android (APK)
-godot --headless --path . --export-release "Android" build/android/4cats.apk
+# Android (Testfassung, nutzt den Debug-Keystore)
+mkdir build/android
+godot --headless --path . --export-debug "Android" build/android/4cats.apk
 ```
 
-Für Testläufe `--export-debug` statt `--export-release` verwenden.
+Für eine **veröffentlichbare** Android-Fassung braucht es einen eigenen
+Release-Keystore. Er gehört **nicht** ins Repository:
+
+```powershell
+keytool -v -genkey -keystore 4cats.keystore -alias fourcats -keyalg RSA -validity 10000
+
+$env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH     = "C:\pfad\zu\4cats.keystore"
+$env:GODOT_ANDROID_KEYSTORE_RELEASE_USER     = "fourcats"
+$env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD = "<passwort>"
+
+godot --headless --path . --export-release "Android" build/android/4cats.apk
+```
 
 > **Hinweis zum Android-Emulator:** Der Standard-Emulator mit `swiftshader`
 > kann Godots Canvas-Shader nicht übersetzen (`GL_MAX_FRAGMENT_UNIFORM_VECTORS`)
 > und zeigt nur ein graues Bild. Mit `emulator -avd <name> -gpu host` funktioniert
 > es. Echte Geräte sind davon nicht betroffen.
+>
+> Das Export-Profil baut für `arm64-v8a` und `armeabi-v7a`. Für einen x86_64-
+> Emulator muss `architectures/x86_64` in `export_presets.cfg` vorübergehend
+> auf `true` gesetzt werden.
 
 ## Lizenzen
 
