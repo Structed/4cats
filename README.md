@@ -57,6 +57,9 @@ scripts/
 resources/               TileSet und UI-Design
 assets/                  Grafik und Ton (siehe CREDITS.md)
 tools/                   Skripte zum Bauen, Prüfen und Erzeugen von Assets
+.github/
+  github-app.yml         Projekteinstellungen für die GitHub-Copilot-App
+  workflows/ci.yml       Prüfen und Bauen bei jedem Push
 ```
 
 ### Technische Eckdaten
@@ -75,6 +78,19 @@ tools/                   Skripte zum Bauen, Prüfen und Erzeugen von Assets
 Voraussetzung ist **Godot 4.7.2**. Für den Android-Export zusätzlich
 **OpenJDK 17** und das **Android SDK** (Build-Tools 35.0.1, Plattform 35),
 konfiguriert in den Godot-Editor-Einstellungen.
+
+Godot liegt selten im PATH. `tools/godot.ps1` sucht die Binary (Umgebungs-
+variable `GODOT`, dann PATH, dann die üblichen Installationsorte) und reicht
+alle Argumente unverändert weiter. Auf Windows wählt es die Konsolenfassung –
+nur sie gibt Ausgaben an die Konsole weiter, was für Testläufe entscheidend ist.
+
+```powershell
+pwsh tools/godot.ps1 --which        # zeigt, welche Binary benutzt wird
+$env:GODOT = 'C:\Pfad\zu\godot.exe' # überstimmt die Suche
+```
+
+Wer Godot im PATH hat, kann in allen folgenden Beispielen `pwsh tools/godot.ps1`
+durch `godot` ersetzen.
 
 ### Assets holen
 
@@ -97,24 +113,26 @@ pwsh tools/generate_icons.ps1
 
 ```powershell
 # Spiel starten
-godot --path .
+pwsh tools/godot.ps1 --path .
 
 # Direkt in eine Szene springen
-godot --path . -- --start=rescue
-godot --path . -- --start=home --demo
+pwsh tools/godot.ps1 --path . -- --start=rescue
+pwsh tools/godot.ps1 --path . -- --start=home --demo
 
 # Projektkonfiguration prüfen (Eingaben, Autoloads, Szenen)
-godot --headless --path . --script res://tools/check_project.gd
+pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
 
 # Spiellogik testen (Retten, Pflegen, Vermitteln, Speichern, Levelaufbau)
-godot --headless --path . -- --test
+pwsh tools/godot.ps1 --headless --path . -- --test
 
 # Übersichtsbild eines erzeugten Viertels
-godot --headless --path . --script res://tools/preview_level.gd -- --out=level.png
+pwsh tools/godot.ps1 --headless --path . --script res://tools/preview_level.gd -- --out=level.png
 
 # Bildschirmfoto einer Szene
 pwsh tools/screenshot.ps1 -Scene home -OutputPath shot.png -Demo
 ```
+
+Beide Prüfungen geben bei Fehlern Exit-Code 1 zurück und laufen so auch in CI.
 
 ### Bauen
 
@@ -123,11 +141,11 @@ Godot legt Zielordner nicht selbst an – vorher anlegen.
 ```powershell
 # Windows
 mkdir build/windows
-godot --headless --path . --export-release "Windows Desktop" build/windows/4cats.exe
+pwsh tools/godot.ps1 --headless --path . --export-release "Windows Desktop" build/windows/4cats.exe
 
 # Android (Testfassung, nutzt den Debug-Keystore)
 mkdir build/android
-godot --headless --path . --export-debug "Android" build/android/4cats.apk
+pwsh tools/godot.ps1 --headless --path . --export-debug "Android" build/android/4cats.apk
 ```
 
 Für eine **veröffentlichbare** Android-Fassung braucht es einen eigenen
@@ -140,7 +158,7 @@ $env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH     = "C:\pfad\zu\4cats.keystore"
 $env:GODOT_ANDROID_KEYSTORE_RELEASE_USER     = "fourcats"
 $env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD = "<passwort>"
 
-godot --headless --path . --export-release "Android" build/android/4cats.apk
+pwsh tools/godot.ps1 --headless --path . --export-release "Android" build/android/4cats.apk
 ```
 
 > **Hinweis zum Android-Emulator:** Der Standard-Emulator mit `swiftshader`
@@ -151,6 +169,17 @@ godot --headless --path . --export-release "Android" build/android/4cats.apk
 > Das Export-Profil baut für `arm64-v8a` und `armeabi-v7a`. Für einen x86_64-
 > Emulator muss `architectures/x86_64` in `export_presets.cfg` vorübergehend
 > auf `true` gesetzt werden.
+
+### GitHub-Copilot-App
+
+`.github/github-app.yml` hinterlegt projektbezogene Hinweise und macht die
+Befehle oben als Knöpfe verfügbar – Tests, Konfigurationsprüfung, Level-
+Übersicht, Windows-Build und das direkte Anspringen einzelner Szenen. Beim
+Anlegen einer Sitzung werden die Ressourcen einmal importiert, weil `.godot/`
+nicht eingecheckt ist.
+
+Die App wendet die Datei erst an, nachdem man sie einmal geprüft und bestätigt
+hat; das gilt nach jeder Änderung erneut.
 
 ## Lizenzen
 

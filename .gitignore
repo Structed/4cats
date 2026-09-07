@@ -26,6 +26,12 @@ builds/
 # Rohdownloads der Asset-Pakete (nur die genutzten Dateien werden committet)
 assets/_downloads/
 
+# Erzeugte Vorschaubilder und Bildschirmfotos aus tools/
+/level_overview.png
+/level.png
+/shot.png
+/*.png.import
+
 # Betriebssystem / Editor
 Thumbs.db
 desktop.ini
