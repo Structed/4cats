@@ -49,6 +49,9 @@ jobs:
       - name: Ressourcen importieren
         run: godot --headless --path . --import
 
+      - name: Skripte uebersetzen
+        run: pwsh tools/lint_scripts.ps1
+
       - name: Projektkonfiguration prüfen
         run: godot --headless --path . --script res://tools/check_project.gd
 
@@ -57,6 +60,9 @@ jobs:
 
       - name: Spieltest (Katze wirklich einfangen)
         run: godot --headless --path . -- --playtest
+
+      - name: Durchlauf durch alle Szenen
+        run: godot --headless --path . -- --smoketest
 
       - name: Windows-Fassung bauen
         run: |

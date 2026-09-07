@@ -136,6 +136,12 @@ pwsh tools/godot.ps1 --headless --path . -- --test
 # Spieltest: laesst den Spieler wirklich eine Katze einfangen
 pwsh tools/godot.ps1 --headless --path . -- --playtest
 
+# Durchlauf: alle Szenen und Knoepfe einmal anfassen
+pwsh tools/godot.ps1 --headless --path . -- --smoketest
+
+# Alle Skripte auf Übersetzungsfehler prüfen
+pwsh tools/lint_scripts.ps1
+
 # Übersichtsbild eines erzeugten Viertels
 pwsh tools/godot.ps1 --headless --path . --script res://tools/preview_level.gd -- --out=level.png
 
@@ -145,11 +151,26 @@ pwsh tools/screenshot.ps1 -Scene home -OutputPath shot.png -Demo
 
 Beide Prüfungen geben bei Fehlern Exit-Code 1 zurück und laufen so auch in CI.
 
+Die fünf Prüfungen decken unterschiedliche Fehlerklassen ab:
+
+| Prüfung | Findet |
+|---|---|
+| `lint_scripts.ps1` | Übersetzungsfehler in **jedem** Skript – auch in Dateien, die im Spiel selten geladen werden |
+| `check_project.gd` | Fehlende Eingaben, Autoloads, Szenen; falscher Renderer |
+| `--test` | Regeln: Tragen, Pflege, Vermittlung, Ausbauten, Speichern, Tempo-Verhältnisse |
+| `--playtest` | Ob sich mit echter Physik tatsächlich eine Katze fangen lässt |
+| `--smoketest` | Laufzeitfehler beim Klicken durch alle Szenen und Menüs |
+
 Der **Spieltest** ist die wichtigste Absicherung für das Rettungs-Gameplay: Er
 lädt das echte Level und lässt den Spieler mit echter Physik eine Katze
 einfangen. Reine Konstanten-Tests hätten den ursprünglichen Fehler nicht
 gefunden – dass der Spieler schneller lief als das Ruhe-Limit der Katzen und
 damit *jede* Katze sofort floh.
+
+Der **Linter** ist nötig, weil Godot Parse-Fehler erst meldet, wenn ein Skript
+zur Laufzeit gebraucht wird. Er übersetzt jede Datei einzeln mit
+`godot --check-only`; Meldungen, die nur an den zur Prüfzeit fehlenden Autoloads
+hängen, werden herausgefiltert.
 
 ### Bauen
 

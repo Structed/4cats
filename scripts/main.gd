@@ -21,6 +21,7 @@ const START_SCENES := {
 const SCREENSHOT_CAPTURE_PATH := "res://scripts/dev/screenshot_capture.gd"
 const GAMEPLAY_TESTS_PATH := "res://tools/test_gameplay.gd"
 const PLAYTHROUGH_TEST_PATH := "res://tools/test_playthrough.gd"
+const SMOKE_TEST_PATH := "res://tools/test_smoke.gd"
 const DEMO_DATA_PATH := "res://scripts/dev/demo_data.gd"
 
 
@@ -31,9 +32,11 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	# Die Testlaeufe ersetzen den normalen Start.
-	if _has_argument("--test") and _spawn_dev_node(GAMEPLAY_TESTS_PATH) != null:
+	if _run_dev_entry_point("--test", GAMEPLAY_TESTS_PATH):
 		return
-	if _has_argument("--playtest") and _spawn_dev_node(PLAYTHROUGH_TEST_PATH) != null:
+	if _run_dev_entry_point("--playtest", PLAYTHROUGH_TEST_PATH):
+		return
+	if _run_dev_entry_point("--smoketest", SMOKE_TEST_PATH):
 		return
 
 	if _has_argument("--demo"):
@@ -77,7 +80,14 @@ func _load_dev_script(path: String) -> GDScript:
 	if not ResourceLoader.exists(path):
 		push_warning("Entwicklungsskript ist in diesem Build nicht enthalten: %s" % path)
 		return null
-	return load(path) as GDScript
+	var script := load(path) as GDScript
+	# Bei einem Parse-Fehler liefert load() ein Skript, das sich nicht
+	# instanziieren laesst. Ohne diese Pruefung liefe ein Testaufruf still ins
+	# normale Spiel weiter -- headless haengt das dann endlos.
+	if script == null or not script.can_instantiate():
+		push_error("Entwicklungsskript laesst sich nicht laden (Parse-Fehler?): %s" % path)
+		return null
+	return script
 
 
 ## Erzeugt einen Knoten aus einem Entwicklungsskript und haengt ihn ein.
@@ -88,6 +98,17 @@ func _spawn_dev_node(path: String) -> Node:
 	var node: Node = script.new()
 	add_child(node)
 	return node
+
+
+## Bricht mit Fehlercode ab, wenn ein angefordertes Testskript nicht laeuft.
+func _run_dev_entry_point(flag: String, path: String) -> bool:
+	if not _has_argument(flag):
+		return false
+	if _spawn_dev_node(path) != null:
+		return true
+	printerr("Abbruch: %s konnte nicht gestartet werden." % flag)
+	get_tree().quit(1)
+	return true
 
 
 func _argument_value(prefix: String, lowercase: bool = true) -> String:

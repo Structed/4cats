@@ -27,6 +27,12 @@ const REQUIRED_SCENES: PackedStringArray = [
 func _initialize() -> void:
 	var failures: PackedStringArray = []
 
+	print("--- Skripte ---")
+	failures.append_array(_check_all_scripts())
+
+	print("--- Szenen laden ---")
+	failures.append_array(_check_all_scenes())
+
 	print("--- Eingabe-Aktionen ---")
 	for action in REQUIRED_ACTIONS:
 		var ok := InputMap.has_action(action)
@@ -45,7 +51,7 @@ func _initialize() -> void:
 		if not ok:
 			failures.append("Autoload fehlt: %s" % autoload_name)
 
-	print("--- Szenen ---")
+	print("--- Pflichtszenen ---")
 	for scene_path in REQUIRED_SCENES:
 		var ok := ResourceLoader.exists(scene_path)
 		print("  %s %s" % ["[ok]  " if ok else "[FEHLT]", scene_path])
@@ -67,3 +73,83 @@ func _initialize() -> void:
 			printerr("FEHLER: %s" % failure)
 		printerr("%d Problem(e) gefunden." % failures.size())
 		quit(1)
+
+
+## Laedt jedes GDScript im Projekt und meldet, was sich nicht uebersetzen laesst.
+##
+## Godot meldet Parse-Fehler sonst erst, wenn ein Skript zur Laufzeit gebraucht
+## wird -- ein kaputtes Skript in einer selten betretenen Szene faellt damit
+## erst dem Spieler auf.
+func _check_all_scripts() -> PackedStringArray:
+	var problems: PackedStringArray = []
+	var paths := _collect_files("res://", ".gd")
+	var broken := 0
+
+	for path in paths:
+		var script := load(path) as GDScript
+		if script == null:
+			problems.append("Skript laesst sich nicht laden: %s" % path)
+			broken += 1
+			print("  [FEHLER] %s" % path)
+		elif not script.can_instantiate() and not _is_static_only(script):
+			problems.append("Skript laesst sich nicht uebersetzen: %s" % path)
+			broken += 1
+			print("  [FEHLER] %s" % path)
+
+	print("  %d Skript(e) geprueft, %d fehlerhaft" % [paths.size(), broken])
+	return problems
+
+
+## Manche Skripte sind reine Werkzeugklassen ohne instanziierbaren Typ.
+## Entscheidend ist, dass sie fehlerfrei uebersetzt wurden.
+func _is_static_only(script: GDScript) -> bool:
+	return script.get_instance_base_type() == StringName()
+
+
+## Instanziiert jede Szene einmal -- so fallen fehlende Knoten und kaputte
+## Skript-Verweise auf, die beim reinen Laden noch nicht auffallen.
+func _check_all_scenes() -> PackedStringArray:
+	var problems: PackedStringArray = []
+	var paths := _collect_files("res://scenes/", ".tscn")
+
+	for path in paths:
+		var packed := load(path) as PackedScene
+		if packed == null:
+			problems.append("Szene laesst sich nicht laden: %s" % path)
+			print("  [FEHLER] %s" % path)
+			continue
+		if not packed.can_instantiate():
+			problems.append("Szene laesst sich nicht aufbauen: %s" % path)
+			print("  [FEHLER] %s" % path)
+
+	print("  %d Szene(n) geprueft" % paths.size())
+	return problems
+
+
+func _collect_files(root: String, suffix: String) -> PackedStringArray:
+	var found: PackedStringArray = []
+	var pending: PackedStringArray = [root]
+
+	while not pending.is_empty():
+		var current: String = pending[0]
+		pending.remove_at(0)
+
+		var dir := DirAccess.open(current)
+		if dir == null:
+			continue
+		dir.list_dir_begin()
+		var entry := dir.get_next()
+		while entry != "":
+			if entry.begins_with("."):
+				entry = dir.get_next()
+				continue
+			var full := current.path_join(entry)
+			if dir.current_is_dir():
+				pending.append(full)
+			elif entry.ends_with(suffix):
+				found.append(full)
+			entry = dir.get_next()
+		dir.list_dir_end()
+
+	found.sort()
+	return found

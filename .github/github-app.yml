@@ -18,15 +18,24 @@ instructions: |
 
   ## Vor "fertig" immer pruefen
 
+      pwsh tools/lint_scripts.ps1
       pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
       pwsh tools/godot.ps1 --headless --path . -- --test
       pwsh tools/godot.ps1 --headless --path . -- --playtest
+      pwsh tools/godot.ps1 --headless --path . -- --smoketest
 
-  Die erste Pruefung deckt Eingaben, Autoloads, Szenen und Renderer ab, die
-  zweite die Spiellogik (Tragen, Pflege, Vermittlung, Ausbauten, Speichern,
-  Levelaufbau). Der Spieltest laedt das echte Level und faengt mit echter Physik
-  eine Katze -- er ist Pflicht nach jeder Aenderung am Rettungs-Gameplay. Alle
-  drei geben bei Fehlern Exit-Code 1 zurueck.
+  Jede Pruefung deckt eine andere Fehlerklasse ab und gibt bei Problemen
+  Exit-Code 1 zurueck:
+
+  - **lint_scripts.ps1** uebersetzt jedes Skript einzeln. Godot meldet
+    Parse-Fehler sonst erst, wenn eine Datei zur Laufzeit gebraucht wird -- ein
+    Fehler in einer selten betretenen Szene faellt damit erst dem Spieler auf.
+  - **check_project.gd** prueft Eingaben, Autoloads, Szenen und Renderer.
+  - **--test** prueft die Regeln und die Tempo-Verhaeltnisse.
+  - **--playtest** faengt mit echter Physik eine Katze. Pflicht nach jeder
+    Aenderung am Rettungs-Gameplay.
+  - **--smoketest** klickt durch alle Szenen und Menues und deckt damit
+    Laufzeitfehler auf, die nur bei Bedienung auftreten.
 
   ## Tempo-Werte haengen zusammen
 
@@ -133,6 +142,12 @@ scripts:
 
   - name: Spieltest (Katze wirklich einfangen)
     command: pwsh tools/godot.ps1 --headless --path . -- --playtest
+
+  - name: Durchlauf durch alle Szenen
+    command: pwsh tools/godot.ps1 --headless --path . -- --smoketest
+
+  - name: Skripte uebersetzen
+    command: pwsh tools/lint_scripts.ps1
 
   - name: Projektkonfiguration pruefen
     command: pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
