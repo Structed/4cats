@@ -247,6 +247,12 @@ func _is_road(cell: Vector2i) -> bool:
 	return false
 
 
+## Ob auf dieser Kachel etwas Festes steht (Haus oder Baum), das den Weg
+## versperrt. Genutzt von der Wegfindung des Spieltests.
+func is_blocked(cell: Vector2i) -> bool:
+	return _blocked.has(cell)
+
+
 # --- Hilfen fuer die Level-Szene ---------------------------------------------
 
 ## Mittelpunkt einer Kachel in Weltkoordinaten.
