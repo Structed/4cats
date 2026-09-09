@@ -10,6 +10,11 @@
 ## (GameState, SaveManager) nur dort zur Verfuegung stehen.
 extends Node
 
+const CAR_FACING_REGIONS := {
+	true: [Rect2i(272, 235, 16, 21), Rect2i(272, 267, 16, 21)],
+	false: [Rect2i(320, 235, 16, 21), Rect2i(320, 267, 16, 21)],
+}
+
 var _failures: PackedStringArray = []
 
 
@@ -21,6 +26,7 @@ func _ready() -> void:
 func run_all() -> void:
 	_test_cat_data()
 	_test_movement_balance()
+	_test_car_directions()
 	_test_carrying()
 	_test_care_and_adoption()
 	_test_upgrades()
@@ -91,6 +97,51 @@ func _test_movement_balance() -> void:
 	print("  Vertrauen dauert %.1f s (zutraulich) bis %.1f s (sehr scheu)"
 		% [seconds_bold, seconds_shy])
 	_check(seconds_shy < 8.0, "Auch die scheuste Katze ist in unter 8 s gewonnen")
+
+
+func _test_car_directions() -> void:
+	print("--- Fahrtrichtung der Autos ---")
+	var scene: PackedScene = load("res://scenes/rescue/hazards/car.tscn")
+
+	for driving_down: bool in [true, false]:
+		var direction_name := "unten" if driving_down else "oben"
+		var expected_regions: Array = CAR_FACING_REGIONS[driving_down]
+		var regions: Array[Rect2i] = UrbanTiles.CAR_REGIONS_DOWN if driving_down else UrbanTiles.CAR_REGIONS_UP
+		_check(regions == expected_regions,
+			"Beide Autofarben nach %s nutzen die passende Ansicht" % direction_name)
+
+		var car: Car = scene.instantiate()
+		car.driving_down = driving_down
+		car.travel_min = 0.0
+		car.travel_max = 100.0
+		car.position = Vector2(42.0, 40.0)
+		add_child(car)
+		car.set_physics_process(false)
+		car.speed = 60.0
+
+		var sprite: Sprite2D = car.get_node("Sprite")
+		var atlas := sprite.texture as AtlasTexture
+		_check(atlas != null, "Das Auto nach %s hat eine Atlastextur" % direction_name)
+		if atlas != null:
+			_check(expected_regions.has(Rect2i(atlas.region)),
+				"Das Auto nach %s zeigt in seine Fahrtrichtung" % direction_name)
+		_check(not sprite.flip_h and not sprite.flip_v and is_zero_approx(sprite.rotation),
+			"Das Auto nach %s bleibt aufrecht und ungespiegelt" % direction_name)
+
+		var start := car.position
+		var direction := 1.0 if driving_down else -1.0
+		car._physics_process(0.25)
+		_check(car.position.is_equal_approx(start + Vector2(0.0, direction * 15.0)),
+			"Das Auto nach %s bewegt sich mit unveraendertem Tempo in seiner Spur" % direction_name)
+
+		car.position.y = car.travel_max if driving_down else car.travel_min
+		car._physics_process(0.25)
+		var wrapped_y := car.travel_min if driving_down else car.travel_max
+		_check(car.position.is_equal_approx(Vector2(start.x, wrapped_y)),
+			"Das Auto nach %s erscheint am anderen Strassenende wieder" % direction_name)
+		_check(sprite.texture == atlas,
+			"Beim Wiedereinsetzen nach %s bleibt die Ansicht erhalten" % direction_name)
+		car.queue_free()
 
 
 func _test_cat_data() -> void:
