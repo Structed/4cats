@@ -74,6 +74,18 @@ pause={
 "events": [Object(InputEventKey,"device":-1,"physical_keycode":4194305,"pressed":false,"script":null)
 ]
 }
+home_furnish={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":66,"pressed":false,"script":null)]
+}
+home_rotate={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":82,"pressed":false,"script":null)]
+}
+home_store={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":88,"pressed":false,"script":null)]
+}
 
 [layer_names]
 

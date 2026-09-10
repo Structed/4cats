@@ -9,6 +9,7 @@ signal home_cats_changed()
 signal cat_rescued(cat: CatData)
 signal cat_adopted(cat: CatData, reward: int)
 signal upgrade_purchased(upgrade_id: String, level: int)
+signal home_layout_changed()
 
 ## Muenzen pro vermittelter Katze.
 const ADOPTION_REWARD := 25
@@ -38,12 +39,12 @@ const UPGRADES := {
 	},
 	"comfort": {
 		"name": "Komfort",
-		"description": "Beduerfnisse sinken zu Hause langsamer.",
+		"description": "Bedürfnisse sinken zu Hause langsamer.",
 		"costs": [60, 140, 300],
 	},
 	"vet": {
 		"name": "Tierarzt",
-		"description": "Katzen genesen schneller und werden frueher vermittelt.",
+		"description": "Katzen genesen schneller und werden früher vermittelt.",
 		"costs": [70, 160, 340],
 	},
 }
@@ -55,8 +56,11 @@ var adopted_total: int = 0
 ## Katzen, die der Spieler gerade traegt.
 var carried_cats: Array[CatData] = []
 
-## Katzen, die zu Hause im Koerbchen liegen und gepflegt werden.
+## Katzen, die zu Hause leben.
 var home_cats: Array[CatData] = []
+var home: HomeData
+var home_simulation: HomeSimulation
+var simulation_active: bool = false
 
 ## Upgrade-Id -> gekaufte Stufe (0 = nicht gekauft).
 var upgrade_levels: Dictionary = {}
@@ -68,7 +72,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	_tick_needs(delta)
+	if simulation_active and not get_tree().paused:
+		_tick_needs(delta)
 
 
 ## Setzt alles auf den Anfangszustand zurueck (neues Spiel).
@@ -78,11 +83,15 @@ func reset() -> void:
 	adopted_total = 0
 	carried_cats.clear()
 	home_cats.clear()
+	home = HomeData.starter()
+	home_simulation = HomeSimulation.new(home, home_cats)
+	simulation_active = false
 	upgrade_levels.clear()
 	for key: String in UPGRADES:
 		upgrade_levels[key] = 0
 	coins_changed.emit(coins)
 	home_cats_changed.emit()
+	home_layout_changed.emit()
 	carried_changed.emit(0, carry_capacity())
 
 
@@ -115,6 +124,7 @@ func deliver_carried_cats() -> int:
 		cat.state = CatData.State.AT_HOME
 		home_cats.append(cat)
 	carried_cats.clear()
+	home_simulation.sync_cats()
 	if delivered > 0:
 		home_cats_changed.emit()
 	carried_changed.emit(0, carry_capacity())
@@ -163,21 +173,24 @@ func _tick_needs(delta: float) -> void:
 		return
 
 	var decay := decay_multiplier() * delta
-	var recovery_speed := recovery_rate()
-	var adopted: Array[CatData] = []
-
 	for cat in home_cats:
 		cat.hunger = maxf(cat.hunger - DECAY_HUNGER * decay, 0.0)
 		cat.thirst = maxf(cat.thirst - DECAY_THIRST * decay, 0.0)
 		cat.cleanliness = maxf(cat.cleanliness - DECAY_CLEANLINESS * decay, 0.0)
+		cat.enrichment = maxf(cat.enrichment - HomeSimulation.DECAY_ENRICHMENT * decay, 0.0)
 
 		# Die Gesundheit faellt nur, wenn die Katze wirklich vernachlaessigt wird.
 		if is_zero_approx(cat.hunger) or is_zero_approx(cat.thirst):
 			cat.health = maxf(cat.health - HEALTH_DECAY_WHEN_STARVING * decay, 0.0)
 
+	home_simulation.step(delta)
+	var recovery_speed := recovery_rate()
+	var adopted: Array[CatData] = []
+	for cat in home_cats:
 		if cat.all_needs_met():
 			cat.recovery_timer += delta * recovery_speed
-			if cat.recovery_timer >= CatData.RECOVERY_SECONDS:
+			if cat.recovery_timer >= CatData.RECOVERY_SECONDS \
+					and home_simulation.held_cat_id != cat.id:
 				adopted.append(cat)
 		else:
 			# Rueckschlag, aber nicht komplett bei null anfangen.
@@ -189,6 +202,7 @@ func _tick_needs(delta: float) -> void:
 
 func _adopt(cat: CatData) -> void:
 	home_cats.erase(cat)
+	home_simulation.sync_cats()
 	cat.state = CatData.State.ADOPTED
 	adopted_total += 1
 	add_coins(ADOPTION_REWARD)
@@ -240,6 +254,49 @@ func purchase_upgrade(upgrade_id: String) -> bool:
 
 # --- Speichern --------------------------------------------------------------
 
+func buy_home_item(kind: String) -> HomeItemData:
+	if not HomeCatalog.KINDS.has(kind) or coins < HomeCatalog.price(kind):
+		return null
+	var item := HomeItemData.new()
+	while home.item_by_id("item_%d" % home.next_item) != null:
+		home.next_item += 1
+	item.id = "item_%d" % home.next_item
+	home.next_item += 1
+	item.kind = kind
+	item.placed = false
+	home.items.append(item)
+	add_coins(-HomeCatalog.price(kind))
+	home_layout_changed.emit()
+	return item
+
+
+func place_home_item(id: String, cell: Vector2i, turns: int,
+		occupants: Array[Vector2]) -> String:
+	if home_simulation.item_in_use(id):
+		return "Dieser Gegenstand wird gerade benutzt."
+	var error := home_simulation.layout.placement_error(id, cell, turns, occupants)
+	if not error.is_empty():
+		return error
+	var item := home.item_by_id(id)
+	item.cell = cell
+	item.turns = posmod(turns, 4)
+	item.placed = true
+	home_simulation.rebuild_layout()
+	home_layout_changed.emit()
+	return ""
+
+
+func store_home_item(id: String) -> String:
+	var item := home.item_by_id(id)
+	if item == null or not item.placed:
+		return "Dieser Gegenstand steht nicht im Haus."
+	if home_simulation.item_in_use(id):
+		return "Dieser Gegenstand wird gerade benutzt."
+	item.placed = false
+	home_simulation.rebuild_layout()
+	home_layout_changed.emit()
+	return ""
+
 func to_dict() -> Dictionary:
 	var carried: Array = []
 	for cat in carried_cats:
@@ -254,10 +311,24 @@ func to_dict() -> Dictionary:
 		"carried_cats": carried,
 		"home_cats": at_home,
 		"upgrade_levels": upgrade_levels.duplicate(),
+		"home": home.to_dict(),
 	}
 
 
-func from_dict(data: Dictionary) -> void:
+func from_dict(data: Dictionary) -> bool:
+	var raw_home: Variant = data.get("home")
+	if raw_home is not Dictionary:
+		push_warning("Im Spielstand fehlen die Hausdaten.")
+		return false
+	var loaded_home := HomeData.from_dict(raw_home)
+	if loaded_home == null:
+		push_warning("Die gespeicherten Hausdaten sind beschaedigt.")
+		return false
+	var loaded_layout := HomeLayout.new(loaded_home)
+	var layout_error := loaded_layout.save_error()
+	if not layout_error.is_empty():
+		push_warning("Hausspielstand: %s" % layout_error)
+		return false
 	coins = maxi(int(data.get("coins", 0)), 0)
 	rescued_total = maxi(int(data.get("rescued_total", 0)), 0)
 	adopted_total = maxi(int(data.get("adopted_total", 0)), 0)
@@ -273,6 +344,8 @@ func from_dict(data: Dictionary) -> void:
 	for entry: Variant in home_raw:
 		if entry is Dictionary:
 			home_cats.append(CatData.from_dict(entry))
+	home = loaded_home
+	home_simulation = HomeSimulation.new(home, home_cats)
 
 	# Unbekannte Upgrade-Ids aus alten Staenden werden verworfen.
 	var stored: Dictionary = data.get("upgrade_levels", {})
@@ -282,4 +355,6 @@ func from_dict(data: Dictionary) -> void:
 
 	coins_changed.emit(coins)
 	home_cats_changed.emit()
+	home_layout_changed.emit()
 	carried_changed.emit(carried_cats.size(), carry_capacity())
+	return true

@@ -63,7 +63,16 @@ func _run() -> void:
 
 	await _test_sprint_scares(level, player)
 
-	_finish(level)
+	level.queue_free()
+	await get_tree().process_frame
+	var home_test_script: GDScript = load("res://tools/test_home_playthrough.gd")
+	var home_test: Node = home_test_script.new()
+	add_child(home_test)
+	var home_failures: PackedStringArray = await home_test.run()
+	_failures.append_array(home_failures)
+	home_test.queue_free()
+	await get_tree().process_frame
+	_finish(null)
 
 
 ## Baut ein Gitter fuer die Wegfindung: jede Kachel mit einem Haus oder Baum
@@ -290,13 +299,14 @@ func _nearest_cat(level: Node, player: Player) -> Cat:
 
 
 func _finish(level: Node) -> void:
-	level.queue_free()
+	if is_instance_valid(level):
+		level.queue_free()
 	print("")
 	if _failures.is_empty():
 		print("Spieltest bestanden.")
-		get_tree().quit(0)
+		get_tree().quit.call_deferred(0)
 	else:
 		for failure in _failures:
 			printerr("FEHLGESCHLAGEN: %s" % failure)
 		printerr("%d Pruefung(en) fehlgeschlagen." % _failures.size())
-		get_tree().quit(1)
+		get_tree().quit.call_deferred(1)

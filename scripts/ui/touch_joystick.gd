@@ -22,6 +22,12 @@ extends Control
 ## Wenn true, erscheint der Joystick an der Beruehrungsstelle.
 @export var dynamic: bool = true
 
+## Zeigt die Touch-Zone auch ohne aufgelegten Finger, etwa beim Einrichten.
+@export var show_idle_hint: bool = false:
+	set(shown):
+		show_idle_hint = shown
+		queue_redraw()
+
 @export var action_left: StringName = &"move_left"
 @export var action_right: StringName = &"move_right"
 @export var action_up: StringName = &"move_up"
@@ -133,9 +139,11 @@ func _set_axis(action: StringName, strength: float) -> void:
 func _draw() -> void:
 	if not _active:
 		# Im Ruhezustand nur eine dezente Andeutung in der Mitte.
-		if dynamic:
+		if dynamic and not show_idle_hint:
 			return
-		draw_circle(size * 0.5, max_radius, base_color)
+		var idle_color := Color(0.09, 0.12, 0.17, 0.65) if show_idle_hint else base_color
+		draw_circle(size * 0.5, max_radius, idle_color)
+		draw_arc(size * 0.5, max_radius, 0.0, TAU, 32, knob_color, 2.0, true)
 		draw_circle(size * 0.5, max_radius * 0.42, knob_color)
 		return
 

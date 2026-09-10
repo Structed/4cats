@@ -22,6 +22,7 @@ func _ready() -> void:
 
 func _capture_after_delay() -> void:
 	await get_tree().create_timer(delay_seconds).timeout
+	_apply_preview()
 
 	# Zwei Frames abwarten, damit das Bild wirklich fertig gezeichnet ist.
 	await RenderingServer.frame_post_draw
@@ -36,3 +37,38 @@ func _capture_after_delay() -> void:
 
 	if quit_after:
 		get_tree().quit(0 if error == OK else 1)
+
+
+func _apply_preview() -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	if "--touch-preview" in OS.get_cmdline_user_args():
+		var touch := scene.get_node_or_null("TouchControls")
+		if touch != null:
+			# Nur diese Instanz umstellen, keine Benutzereinstellung speichern.
+			touch.set("_forced", true)
+			touch.call("_apply_visibility")
+	for argument in OS.get_cmdline_user_args():
+		if argument == "--home-preview=furnish" and scene.has_method("_open_modal"):
+			scene.call("_open_modal", "furnish")
+		elif argument == "--home-preview=placement" and scene.has_method("start_placement"):
+			scene.call("start_placement", "starter_toy")
+		elif argument == "--home-preview=cat" and scene.has_method("_resolve_focus"):
+			if GameState.home_cats.is_empty():
+				push_error("Keine Katze fuer die Vorschau vorhanden. Mit --demo starten.")
+				get_tree().quit(1)
+				return
+			var cat: CatData = GameState.home_cats[0]
+			var state: HomeCatState = GameState.home.cats[cat.id]
+			var simulation: HomeSimulation = scene.get("simulation")
+			if not simulation.pick_up(cat.id):
+				push_error("Die Katze konnte fuer die Vorschau nicht aufgenommen werden.")
+				get_tree().quit(1)
+				return
+			var player: Player = scene.get_node("Player")
+			player.position = state.position
+			var camera: Camera2D = player.get_node("Camera")
+			camera.reset_smoothing()
+			camera.force_update_scroll()
+			scene.call("_resolve_focus")

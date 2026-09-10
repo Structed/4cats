@@ -14,9 +14,6 @@ extends Node
 
 const UI_WINDOW_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1760, 720)]
 const NAVIGATION_ZOOMS: Array[Vector2] = [Vector2(2, 2), Vector2(1.5, 1.5)]
-const CARD_LAYOUT_NODES: PackedStringArray = [
-	"%NameLabel", "%NeedsBox", "%ButtonsBox", "%RecoveryBar", "%RecoveryLabel", "%RecoveryDetails",
-]
 
 var _failures: PackedStringArray = []
 
@@ -49,6 +46,8 @@ func _check(condition: bool, description: String) -> void:
 func _run() -> void:
 	await _test_main_menu()
 	await _test_home()
+	await _test_adoption_status()
+	await _test_touch_furnishing()
 	await _test_rescue()
 	await _test_scene_transitions()
 	await _test_real_ui_path()
@@ -149,7 +148,9 @@ func _test_real_ui_path() -> void:
 		printerr("  Szenenwechsler beschaeftigt: %s" % str(SceneRouter.get("_busy")))
 		return
 
-	_press(home, "%RescueButton")
+	var home_player: Player = home.get_node("Player")
+	home_player.position = HomeCatalog.world(HomeCatalog.ENTRY)
+	await _home_action(home)
 	await _wait_for_scene("RescueLevel")
 	var level := get_tree().current_scene
 	_check(level != null and level.name == "RescueLevel", "Von dort geht es ins Rettungs-Level")
@@ -190,7 +191,9 @@ func _test_real_ui_path() -> void:
 	_check(not get_tree().paused, "Die Pause ist danach aufgehoben")
 
 	# Und weiter ins Hauptmenue.
-	_press(get_tree().current_scene, "%MenuButton")
+	var home_hud: HomeHUD = get_tree().current_scene.get("hud")
+	_press(home_hud, "%PauseButton")
+	_press(home_hud, "%MenuButton")
 	await _wait_for_scene("MainMenu")
 	_check(get_tree().current_scene != null and get_tree().current_scene.name == "MainMenu",
 		"Vom Zuhause geht es zurueck ins Hauptmenue")
@@ -274,55 +277,118 @@ func _test_home() -> void:
 	if home == null:
 		return
 
-	var list: VBoxContainer = _node(home, "%CatList")
-	_check(list.get_child_count() == 2, "Fuer jede Katze gibt es eine Karte")
+	var player: Player = home.get_node("Player")
+	var hud: HomeHUD = home.get("hud")
+	var simulation: HomeSimulation = home.get("simulation")
+	var actors: Dictionary = home.get("_cat_actors")
+	_check(actors.size() == 2, "Fuer jede Hauskatze gibt es eine laufende Darstellung")
+	_check(GameState.home.items.size() == 6, "Die kostenlose Grundausstattung ist vorhanden")
+	var touch: CanvasLayer = home.get_node("TouchControls")
+	touch.call("set_forced", true)
+	for kind in ["food", "water"]:
+		var item := GameState.home.item_by_id("starter_" + kind)
+		player.position = HomeCatalog.world(item.port())
+		await _home_action(home)
+		_check(item.stock > 0, "%s laesst sich per Touch-Kontextaktion auffuellen" % kind)
 
-	# Jede Pflegeaktion auf jeder Karte einmal ausloesen.
-	var pressed := 0
-	for card in list.get_children():
-		var buttons: HBoxContainer = card.get_node("Row/Body/ButtonsBox")
-		for button in buttons.get_children():
-			(button as Button).pressed.emit()
-			pressed += 1
-			await _wait(0.05)
-	_check(pressed == 8, "Alle vier Pflegeaktionen auf beiden Karten ausloesbar (%d)" % pressed)
+	var cat: CatData = GameState.home_cats[0]
+	var state: HomeCatState = GameState.home.cats[cat.id]
+	player.position = state.position + Vector2(0, 10)
+	home.call("_resolve_focus")
+	var cat_panel: PanelContainer = hud.get("_cat_panel")
+	var cat_name: Label = hud.get("_cat_name")
+	_check(cat_panel.visible and cat_name.text.contains(cat.cat_name),
+		"Die fokussierte Hauskatze zeigt ihren Vermittlungsstatus ohne Aufnehmen oder Hover")
+	await _home_action(home)
+	_check(simulation.held_cat_id == cat.id, "Eine Hauskatze laesst sich aufnehmen")
+	_check(cat_panel.visible, "Der Vermittlungsstatus bleibt beim Tragen sichtbar")
+	for kind in ["wash", "vet"]:
+		var station := GameState.home.item_by_id("starter_" + kind)
+		player.position = HomeCatalog.world(station.port())
+		await _home_action(home)
+		_check(simulation.is_caring(), "Die Station %s beginnt die Pflege" % kind)
+		await _wait(HomeSimulation.CARE_SECONDS + 0.2)
+		_check(not simulation.is_caring(), "Die Station %s beendet die Pflege" % kind)
+		home.call("_process", 0.0)
+		var need := "cleanliness" if kind == "wash" else "health"
+		var labels: Dictionary = hud.get("_cat_need_labels")
+		var value_label: Label = labels[need]
+		_check(value_label.text == "%s: %d" % [
+			String(HomeHUD.NEED_LABELS[need]), floori(float(cat.get(need)))],
+			"Die Zustandsanzeige uebernimmt die abgeschlossene Pflege an der Station %s" % kind)
+	player.position += Vector2(0, 48)
+	await _home_action(home)
+	_check(simulation.held_cat_id.is_empty(), "Die Hauskatze laesst sich absetzen")
+	var litter := GameState.home.item_by_id("starter_litter")
+	litter.dirt = HomeCatalog.capacity("litter")
+	player.position = HomeCatalog.world(litter.port())
+	await _home_action(home)
+	_check(litter.dirt == 0, "Die Reinigung wird aus der Welt bedient")
 
-	# Abklingzeit abwarten, damit auch der Timer-Pfad einmal laeuft.
-	await _wait(2.6)
-	if list.get_child_count() > 0:
-		await _test_adoption_status(list.get_child(0) as PanelContainer)
-
-	# Laden auf, jedes Upgrade kaufen, wieder zu.
-	_press(home, "%ShopButton")
+	_press(hud, "%ShopButton")
 	await _wait(0.2)
-	_check(_node(home, "%ShopPanel").visible, "Der Laden laesst sich oeffnen")
-
-	var shop: VBoxContainer = _node(home, "%ShopList")
+	_check(hud.modal_kind == "shop", "Der Laden laesst sich oeffnen")
+	_check(get_tree().paused, "Der geoeffnete Laden pausiert die Hausversorgung")
+	var before := cat.hunger
+	await _wait(0.2)
+	_check(is_equal_approx(cat.hunger, before), "Beduerfnisse stehen im Laden still")
 	var bought := 0
-	for row in shop.get_children():
-		var buy := row.get_node_or_null("Buy") as Button
+	for id: String in GameState.UPGRADES:
+		var buy := hud.get_node_or_null("%Upgrade_" + id) as Button
 		if buy != null and not buy.disabled:
 			buy.pressed.emit()
 			bought += 1
 			await _wait(0.05)
 	_check(bought > 0, "Ausbauten lassen sich kaufen (%d)" % bought)
-
-	_press(home, "%ShopCloseButton")
+	_press(hud, "%ModalCloseButton")
 	await _wait(0.2)
-	_check(not _node(home, "%ShopPanel").visible, "Der Laden laesst sich schliessen")
+	_check(hud.modal_kind.is_empty() and not get_tree().paused, "Der Laden laesst sich schliessen")
 
-	# Adoption ausloesen -- dabei wird die Karte mitten im Betrieb entfernt.
+	_press(hud, "%FurnishButton")
+	_press(hud, "%Buy_toy")
+	_check(GameState.home.items.size() == 7, "Ein neues Spielzeug landet im Inventar")
+	var toy: HomeItemData = GameState.home.items.back()
+	var old_cell := toy.cell
+	player.position = HomeCatalog.world(Vector2i(16, 11))
+	_press(hud, "%Select_" + toy.id)
+	await _wait(0.2)
+	_check(home.get("_preview") != null, "Ein Gegenstand bekommt eine Platzierungsvorschau")
+	await _home_action(home, "RotateButton")
+	var preview: HomeItemActor = home.get("_preview")
+	_check(preview.data.turns == 1, "Drehen funktioniert ueber Touch")
+	var hint_panel: Control = hud.get("_hint_panel")
+	_check(hint_panel.get_global_rect().end.y <= hud.get_viewport_rect().end.y,
+		"Mehrzeilige Einrichtungshinweise bleiben innerhalb des Bildschirms")
+	_check(not toy.placed and toy.cell == old_cell, "Die Vorschau veraendert noch keine Hausdaten")
+	await _home_action(home)
+	_check(toy.placed, "Die Kontextaktion stellt das Spielzeug auf")
+	_press(hud, "%FurnishButton")
+	_press(hud, "%Select_" + toy.id)
+	await _wait(0.2)
+	await _home_action(home, "StoreButton")
+	_check(not toy.placed, "Einlagern funktioniert ueber Touch")
+	_press(hud, "%FurnishButton")
+	_press(hud, "%Select_" + toy.id)
+	await _wait(0.2)
+	_press(hud, "%FurnishButton")
+	_check(home.get("_preview") == null and not toy.placed, "Abbrechen verwirft nur die Vorschau")
+	_check(not Input.is_action_pressed("interact") and not Input.is_action_pressed("home_rotate"),
+		"Die Touch-Aktionen bleiben nicht gedrueckt")
+
+	# Adoption ausloesen -- dabei wird die Hauskatze mitten im Betrieb entfernt.
 	_adoption_seen = false
 	GameState.cat_adopted.connect(_on_cat_adopted)
-	for cat in GameState.home_cats.duplicate():
-		cat.hunger = 100.0
-		cat.thirst = 100.0
-		cat.cleanliness = 100.0
-		cat.health = 100.0
-		cat.recovery_timer = CatData.RECOVERY_SECONDS - 0.1
+	for recovered_cat in GameState.home_cats.duplicate():
+		recovered_cat.hunger = 100.0
+		recovered_cat.thirst = 100.0
+		recovered_cat.cleanliness = 100.0
+		recovered_cat.health = 100.0
+		recovered_cat.enrichment = 100.0
+		recovered_cat.recovery_timer = CatData.RECOVERY_SECONDS - 0.1
 	await _wait(0.8)
 	GameState.cat_adopted.disconnect(_on_cat_adopted)
 	_check(_adoption_seen, "Eine Vermittlung mitten im Betrieb bricht nichts")
+	_check(not cat_panel.visible, "Nach der Vermittlung bleibt keine veraltete Zustandsanzeige stehen")
 
 	home.queue_free()
 	await _wait(0.2)
@@ -332,132 +398,239 @@ func _on_cat_adopted(_cat: CatData, _reward: int) -> void:
 	_adoption_seen = true
 
 
-func _test_adoption_status(card: PanelContainer) -> void:
-	print("--- Vermittlungsstatus auf der Pflegekarte ---")
-	var status: Label = _node(card, "%RecoveryLabel")
-	var details: Label = _node(card, "%RecoveryDetails")
-	var health_value: Label = _node(card, "%NeedsBox/HealthValue")
-	var progress: ProgressBar = _node(card, "%RecoveryBar")
-	if status == null or details == null or health_value == null or progress == null:
-		return
-
-	var cat: CatData = card.get("cat")
-	var original_needs: Dictionary = cat.needs()
-	var original_recovery := cat.recovery_timer
-	var original_processing := GameState.is_processing()
+func _test_adoption_status() -> void:
+	print("--- Vermittlungsstatus im Katzenhaus ---")
+	GameState.reset()
+	GameState.add_coins(500)
+	var cat := CatData.create_random()
+	GameState.pick_up_cat(cat)
+	GameState.deliver_carried_cats()
+	var hud := HomeHUD.new()
+	get_tree().root.add_child(hud)
+	var status: Label = hud.get("_cat_recovery")
+	var details: Label = hud.get("_cat_details")
+	var need_labels: Dictionary = hud.get("_cat_need_labels")
+	var health_value: Label = need_labels["health"]
 	var window := get_tree().root
 	var original_size := window.size
-	GameState.set_process(false)
 
 	for need_key: String in cat.needs():
 		cat.set(need_key, CatData.NEED_MAX)
 	cat.health = CatData.RECOVERY_THRESHOLD - 0.1
 	cat.recovery_timer = 0.0
-	card.call("refresh")
+	hud.set_cat_status(cat)
 	_check(status.text.begins_with("Pflege fehlt") and cat.wellbeing() > CatData.RECOVERY_THRESHOLD,
 		"Hoher Durchschnitt wird bei fehlendem Einzelwert nicht als vermittlungsbereit angezeigt")
-	var name_label: Label = _node(card, "%NameLabel")
+	var name_label: Label = hud.get("_cat_name")
 	_check(name_label.text.contains("Wohlbefinden:"), "Der Durchschnitt ist als Wohlbefinden beschriftet")
-	_check(health_value.text == "Gesundheit: %d/%d" % [
-		int(CatData.RECOVERY_THRESHOLD) - 1, int(CatData.NEED_MAX)
-	], "Ein Wert knapp unter der Schwelle wird nicht aufgerundet")
+	_check(need_labels.size() == cat.needs().size(), "Alle fuenf Pflegewerte werden als Zahlen angezeigt")
+	_check(health_value.text == "Gesundheit: %d" % (int(CatData.RECOVERY_THRESHOLD) - 1),
+		"Ein Wert knapp unter der Schwelle wird nicht aufgerundet")
 	_check(details.text.begins_with("Fehlt: Gesundheit."),
 		"Nur die tatsaechlich fehlende Pflege wird benannt")
-	_check(details.text.contains("mindestens %d" % int(CatData.RECOVERY_THRESHOLD)),
+	_check(details.text.contains("Alle 5 Werte mindestens %d" % int(CatData.RECOVERY_THRESHOLD)),
 		"Die inklusive Zielschwelle ist sichtbar")
 	_check(not status.text.contains("in ca.") and not details.text.contains("Fortschritt sinkt"),
 		"Ohne Fortschritt gibt es weder Countdown noch eine falsche Rueckschrittsmeldung")
 
 	cat.health = CatData.RECOVERY_THRESHOLD
-	card.call("refresh")
+	hud.set_cat_status(cat)
 	_check(status.text.begins_with("Genesung:") and status.text.ends_with("in ca. 30 s"),
-		"Genau auf der Schwelle zeigt die Karte die automatische Vermittlung mit Restzeit")
+		"Genau auf der Schwelle zeigt die Anzeige die automatische Vermittlung mit Restzeit")
 	_check(not details.text.contains("Fehlt:"), "Erfuellte Voraussetzungen werden nicht als fehlend angezeigt")
+	cat.health = CatData.NEED_MAX
+	cat.enrichment = CatData.RECOVERY_THRESHOLD - 0.1
+	hud.set_cat_status(cat)
+	var enrichment_label: String = HomeHUD.NEED_LABELS["enrichment"]
+	_check(details.text.begins_with("Fehlt: %s." % enrichment_label),
+		"Das neue Beschaeftigungsbeduerfnis verhindert die Vermittlung trotz vier guter Werte")
+	cat.enrichment = CatData.RECOVERY_THRESHOLD
+	hud.set_cat_status(cat)
+	_check(status.text.begins_with("Genesung:"), "Auch Beschaeftigung genau auf der Schwelle reicht aus")
+	cat.enrichment = CatData.NEED_MAX
 
 	cat.hunger = CatData.RECOVERY_THRESHOLD - 0.1
 	cat.thirst = CatData.RECOVERY_THRESHOLD - 0.1
 	cat.recovery_timer = 10.0
-	card.call("refresh")
+	hud.set_cat_status(cat)
 	_check(status.text.begins_with("Genesung unterbrochen"),
 		"Fehlende Pflege bei Restfortschritt wird als Unterbrechung angezeigt")
 	_check(details.text.begins_with("Fehlt: Hunger, Durst.") and details.text.contains("Fortschritt sinkt"),
 		"Die Unterbrechung benennt alle fehlenden Werte und erklaert den Rueckschritt")
 	_check(not status.text.contains("in ca."), "Waehrend der Unterbrechung wird kein Countdown versprochen")
-	var before := progress.value
+	var before := cat.recovery_timer
 	GameState._tick_needs(1.0)
-	card.call("refresh")
-	_check(progress.value < before, "Der Genesungsbalken zeigt den tatsaechlichen Rueckschritt")
+	hud.set_cat_status(cat)
+	_check(cat.recovery_timer < before and status.text.contains("%d %%" % floori(cat.recovery_progress() * 100.0)),
+		"Die Genesungsanzeige zeigt den tatsaechlichen Rueckschritt ohne alten Pflegebalken")
 	var retained := cat.recovery_timer
 
-	var buttons: HBoxContainer = _node(card, "%ButtonsBox")
-	(buttons.get_child(0) as Button).pressed.emit()
-	(buttons.get_child(1) as Button).pressed.emit()
+	cat.hunger = CatData.NEED_MAX
+	cat.thirst = CatData.NEED_MAX
+	hud.set_cat_status(cat)
 	_check(cat.all_needs_met() and status.text.begins_with("Genesung:"),
-		"Fuettern und Traenken wechseln die Anzeige sofort zur laufenden Genesung")
+		"Ausreichende Versorgung wechselt die Anzeige zur laufenden Genesung")
 	_check(is_equal_approx(cat.recovery_timer, retained), "Pflege erhaelt den bisherigen Fortschritt")
 	var remaining_before := GameState.recovery_seconds_remaining(cat)
 	var status_before := status.text
 	_check(GameState.purchase_upgrade("vet"), "Tierarzt-Ausbau waehrend der Genesung ist moeglich")
-	await _wait(0.05)
+	hud.set_cat_status(cat)
 	_check(GameState.recovery_seconds_remaining(cat) < remaining_before and status.text != status_before,
-		"Ein Tierarzt-Kauf verkuerzt den angezeigten Countdown ohne Neuaufbau der Karte")
+		"Ein Tierarzt-Kauf verkuerzt den Countdown ohne Neuaufbau der Anzeige")
 	_check(status.text.ends_with("in ca. %d s" % ceili(GameState.recovery_seconds_remaining(cat))),
 		"Die angezeigte Restzeit entspricht der aktuellen Tierarzt-Stufe")
 	GameState._tick_needs(1.0)
-	card.call("refresh")
+	hud.set_cat_status(cat)
 	_check(cat.recovery_timer > retained, "Nach der Unterbrechung steigt der Fortschritt wieder")
 
 	cat.health = CatData.RECOVERY_THRESHOLD - 0.1
 	cat.recovery_timer = 0.5
 	GameState._tick_needs(1.0)
-	card.call("refresh")
+	hud.set_cat_status(cat)
 	_check(status.text.begins_with("Pflege fehlt") and not details.text.contains("Fortschritt sinkt"),
-		"Bei aufgebrauchtem Fortschritt wechselt die Karte zur fehlenden Pflege")
+		"Bei aufgebrauchtem Fortschritt wechselt die Anzeige zur fehlenden Pflege")
 	cat.health = CatData.NEED_MAX
 	cat.recovery_timer = CatData.RECOVERY_SECONDS - 0.001
-	card.call("refresh")
+	hud.set_cat_status(cat)
 	_check(status.text.ends_with("in ca. 1 s") and not status.text.contains("100 %"),
 		"Kurz vor Abschluss werden weder null Sekunden noch volle Genesung vorgetaeuscht")
-	_check(progress.value < 100.0, "Auch der Balken rundet unvollstaendige Genesung nicht auf 100 auf")
+	var simulation := GameState.home_simulation
+	_check(simulation.pick_up(cat.id), "Die fast genesene Katze laesst sich noch tragen")
+	hud.set_cat_status(cat)
+	_check(not status.text.contains("Automatische Vermittlung in") and details.text.contains("absetzen"),
+		"Waehrend des Tragens wird die zusaetzliche Voraussetzung zum Vermitteln erklaert")
+	GameState._tick_needs(0.01)
+	hud.set_cat_status(cat)
+	_check(cat.state == CatData.State.AT_HOME and status.text == "Genesung abgeschlossen",
+		"Abgeschlossene Genesung wird beim Tragen nicht als erfolgte Vermittlung dargestellt")
+	_check(details.text.contains("absetzen"), "Eine genesene getragene Katze muss sichtbar erst abgesetzt werden")
+	cat.enrichment = CatData.RECOVERY_THRESHOLD - 0.1
+	hud.set_cat_status(cat)
+	_check(status.text.begins_with("Genesung unterbrochen"),
+		"Fehlende Pflege hat auch bei vollem Fortschritt Vorrang vor der Abschlussmeldung")
+	_check(simulation.drop(simulation.layout.free_position()), "Die Katze kann wieder abgesetzt werden")
 
 	for window_size in UI_WINDOW_SIZES:
 		window.size = window_size
 		for need_key: String in cat.needs():
 			cat.set(need_key, CatData.RECOVERY_THRESHOLD - 0.1)
 		cat.recovery_timer = 10.0
-		card.call("refresh")
+		hud.set_cat_status(cat)
 		await _wait(0.1)
-		_check_cat_card_layout(card, "mit allen fehlenden Werten bei %s" % window_size)
+		_check_cat_status_layout(hud, "mit allen fehlenden Werten bei %s" % window_size)
 		for need_key: String in cat.needs():
 			cat.set(need_key, CatData.NEED_MAX)
-		card.call("refresh")
+		hud.set_cat_status(cat)
 		await _wait(0.1)
-		_check_cat_card_layout(card, "mit Countdown bei %s" % window_size)
+		_check_cat_status_layout(hud, "mit Countdown bei %s" % window_size)
 
 	window.size = original_size
-	for need_key: String in original_needs:
-		cat.set(need_key, original_needs[need_key])
-	cat.recovery_timer = original_recovery
-	card.call("refresh")
-	GameState.set_process(original_processing)
+	hud.set_cat_status(null)
+	var panel: PanelContainer = hud.get("_cat_panel")
+	_check(not panel.visible, "Ohne beobachtete Katze ist die Zustandsanzeige ausgeblendet")
+	hud.queue_free()
 	await _wait(0.1)
 
 
-func _check_cat_card_layout(card: Control, context: String) -> void:
-	var body: Control = card.get_node("Row/Body")
-	var bounds := body.get_global_rect().grow(0.1)
-	_check(card.get_global_rect().end.x <= card.get_viewport_rect().end.x,
-		"Die Pflegekarte passt ins Fenster %s" % context)
-	for node_path in CARD_LAYOUT_NODES:
-		var control: Control = _node(card, node_path)
-		if control == null:
-			continue
-		_check(bounds.encloses(control.get_global_rect()), "%s bleibt innerhalb der Karte %s" % [node_path, context])
-		if control is Label:
-			_check(control.get_visible_line_count() == control.get_line_count(),
-				"Alle Textzeilen von %s sind lesbar %s" % [node_path, context])
+func _check_cat_status_layout(hud: HomeHUD, context: String) -> void:
+	var panel: PanelContainer = hud.get("_cat_panel")
+	var bounds := panel.get_global_rect().grow(0.1)
+	_check(hud.get_viewport_rect().encloses(panel.get_global_rect()),
+		"Die Zustandsanzeige passt ins Fenster %s" % context)
+	_check(panel.get_global_rect().position.y >= 62 \
+			and panel.get_global_rect().end.y <= hud.get_viewport_rect().end.y - 166,
+		"Die Zustandsanzeige laesst Kopfzeile und Touch-Knoepfe frei %s" % context)
+	_check(panel.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+		"Die reine Zustandsanzeige faengt keine Eingaben ab")
+	var labels: Array[Label] = [hud.get("_cat_name"), hud.get("_cat_recovery"), hud.get("_cat_details")]
+	var need_labels: Dictionary = hud.get("_cat_need_labels")
+	for label: Label in need_labels.values():
+		labels.append(label)
+	for label in labels:
+		_check(bounds.encloses(label.get_global_rect()) and label.get_visible_line_count() == label.get_line_count(),
+			"Alle Textzeilen bleiben innerhalb der Zustandsanzeige %s" % context)
 
 
+func _home_action(home: Node, button_name: String = "ActionButton") -> void:
+	await _wait(0.05)
+	var button: Button = home.get_node("TouchControls/Root/" + button_name)
+	button.button_down.emit()
+	await _wait(0.06)
+	button.button_up.emit()
+	await _wait(0.06)
+
+
+func _test_touch_furnishing() -> void:
+	print("--- Echte Touch-Gesten beim Einrichten ---")
+	GameState.reset()
+	var home := await _load_scene("res://scenes/home/home_scene.tscn")
+	if home == null:
+		return
+	var touch: CanvasLayer = home.get_node("TouchControls")
+	touch.call("set_forced", true)
+	var hud: HomeHUD = home.get("hud")
+	var player: Player = home.get_node("Player")
+	var food := GameState.home.item_by_id("starter_food")
+	var original_cell := food.cell
+	var emulation_before := Input.emulate_mouse_from_touch
+	Input.emulate_mouse_from_touch = true
+	await _screen_tap(hud.get_node("%FurnishButton"))
+	_check(hud.modal_kind == "furnish", "Eine echte Beruehrung oeffnet den Einrichtungskatalog")
+	if hud.modal_kind == "furnish":
+		await _screen_tap(hud.get_node("%Select_starter_food"))
+		var preview: HomeItemActor = home.get("_preview")
+		_check(preview != null and not get_tree().paused,
+			"Eine echte Beruehrung waehlt einen Gegenstand zum Versetzen")
+		if preview != null:
+			var joystick: TouchJoystick = home.get_node("TouchControls/Root/Joystick")
+			var movement_hint: Label = home.get_node("TouchControls/Root/MovementHint")
+			_check(joystick.show_idle_hint and movement_hint.is_visible_in_tree(),
+				"Der Joystick ist beim Einrichten schon vor der ersten Beruehrung erkennbar")
+			var hint: Label = hud.get("_hint")
+			_check(hint.text.contains("Joystick") and not hint.text.contains("R drehen"),
+				"Der Einrichtungshinweis beschreibt die Touch-Bedienung")
+			var origin := joystick.get_global_rect().get_center()
+			var start := player.position
+			_screen_touch(origin, 0, true)
+			await _wait(0.05)
+			var drag := InputEventScreenDrag.new()
+			drag.index = 0
+			drag.position = origin + Vector2(0, -60)
+			drag.relative = Vector2(0, -60)
+			get_viewport().push_input(drag, true)
+			await _wait(0.6)
+			_check(player.position.y < start.y - 20,
+				"Ein Finger am Joystick bewegt Spielfigur und Platzierungsvorschau")
+			await _screen_tap(home.get_node("TouchControls/Root/ActionButton"), 1)
+			_check(home.get("_preview") == null and food.cell != original_cell,
+				"Ein zweiter Finger stellt den Gegenstand waehrend der Joystick-Geste um")
+			_check(Input.is_action_pressed("move_up"),
+				"Der zweite Finger unterbricht den gehaltenen Joystick nicht")
+			_check(not joystick.show_idle_hint and not movement_hint.is_visible_in_tree(),
+				"Nach dem Aufstellen kehrt die normale dynamische Touch-Anzeige zurueck")
+			_screen_touch(drag.position, 0, false)
+			await _wait(0.1)
+			_check(Input.get_vector("move_left", "move_right", "move_up", "move_down").is_zero_approx(),
+				"Nach dem Loslassen bleiben keine Bewegungsaktionen aktiv")
+	Input.emulate_mouse_from_touch = emulation_before
+	home.queue_free()
+	await _wait(0.2)
+
+
+func _screen_tap(control: Control, index: int = 0) -> void:
+	var point := control.get_global_rect().get_center()
+	_screen_touch(point, index, true)
+	await _wait(0.06)
+	_screen_touch(point, index, false)
+	await _wait(0.2)
+
+
+func _screen_touch(point: Vector2, index: int, pressed: bool) -> void:
+	var event := InputEventScreenTouch.new()
+	event.position = point
+	event.index = index
+	event.pressed = pressed
+	get_viewport().push_input(event, true)
 # --- Rettung -----------------------------------------------------------------
 
 func _test_rescue() -> void:
