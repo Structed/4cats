@@ -21,7 +21,9 @@ oder mit Tastatur bedienbar.
 3. **Gefahren**: Autos fahren die Straßen entlang, Hunde streunen herum. Wer
    erschrickt, verliert eine getragene Katze – sie läuft weg, mehr passiert nicht.
    Es gibt **kein Zeitlimit** und man kann nicht verlieren.
-4. **Heimbringen**: Betritt die grün markierte Heimzone.
+4. **Heimbringen**: Ein grüner Pfeil zeigt dir während der gesamten Rettung den
+   Weg nach Hause – am Bildschirmrand oder direkt an der Heimzone, wenn sie im
+   Bild ist. Betritt die grün markierte Heimzone, um Katzen abzugeben.
 5. **Pflegen**: Jede Katze hat vier Werte – Hunger, Durst, Sauberkeit, Gesundheit.
    Per Tippen füllst du sie auf. Jede Aktion hat eine kurze Abklingzeit.
 6. **Vermitteln**: Bleiben alle vier Werte über 80, wird die Katze nach kurzer Zeit

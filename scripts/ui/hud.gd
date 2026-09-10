@@ -1,11 +1,13 @@
 ## Anzeige waehrend der Rettungs-Phase.
 ##
-## Zeigt getragene Katzen, Muenzen und kurze Hinweise -- und enthaelt das
-## Pausenmenue.
+## Zeigt getragene Katzen, Muenzen, den Heimweg und kurze Hinweise -- und
+## enthaelt das Pausenmenue.
 extends Control
 
 const HINT_SECONDS := 3.5
 
+@onready var _home_indicator: HomeIndicator = $HomeIndicator
+@onready var _top_left: VBoxContainer = $TopLeft
 @onready var _carry_label: Label = %CarryLabel
 @onready var _coin_label: Label = %CoinLabel
 @onready var _hint_label: Label = %HintLabel
@@ -46,6 +48,13 @@ func _process(delta: float) -> void:
 func set_hint(text: String) -> void:
 	_hint_label.text = text
 	_hint_timer = HINT_SECONDS
+
+
+func set_home_navigation(
+		player: Node2D, home_zone: Node2D, extra_obstacles: Array[Control]) -> void:
+	var obstacles: Array[Control] = [_top_left, _home_button, _hint_label]
+	obstacles.append_array(extra_obstacles)
+	_home_indicator.configure(player, home_zone, obstacles)
 
 
 func toggle_pause() -> void:
