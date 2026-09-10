@@ -240,7 +240,8 @@ try {
 
     Reset-Fixture $linear
     $shallow = Join-Path $fixtureRoot 'shallow'
-    Invoke-TestGit $fixtureRoot @('clone', '--quiet', '--depth=1', ([uri]$linear).AbsoluteUri, $shallow)
+    $linearUri = [UriBuilder]::new('file', '', -1, $linear).Uri.AbsoluteUri
+    Invoke-TestGit $fixtureRoot @('clone', '--quiet', '--depth=1', $linearUri, $shallow)
     Assert-Rejected $shallow { & $setVersion -ProjectRoot $shallow } 'vollstaendige Git-Historie'
 
     Write-Host '--- APK-Metadaten ---'
