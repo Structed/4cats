@@ -43,6 +43,7 @@ func _check(condition: bool, description: String) -> void:
 func _run() -> void:
 	await _test_main_menu()
 	await _test_home()
+	await _test_touch_furnishing()
 	await _test_rescue()
 	await _test_scene_transitions()
 	await _test_real_ui_path()
@@ -143,7 +144,9 @@ func _test_real_ui_path() -> void:
 		printerr("  Szenenwechsler beschaeftigt: %s" % str(SceneRouter.get("_busy")))
 		return
 
-	_press(home, "%RescueButton")
+	var home_player: Player = home.get_node("Player")
+	home_player.position = HomeCatalog.world(HomeCatalog.ENTRY)
+	await _home_action(home)
 	await _wait_for_scene("RescueLevel")
 	var level := get_tree().current_scene
 	_check(level != null and level.name == "RescueLevel", "Von dort geht es ins Rettungs-Level")
@@ -184,7 +187,9 @@ func _test_real_ui_path() -> void:
 	_check(not get_tree().paused, "Die Pause ist danach aufgehoben")
 
 	# Und weiter ins Hauptmenue.
-	_press(get_tree().current_scene, "%MenuButton")
+	var home_hud: HomeHUD = get_tree().current_scene.get("hud")
+	_press(home_hud, "%PauseButton")
+	_press(home_hud, "%MenuButton")
 	await _wait_for_scene("MainMenu")
 	_check(get_tree().current_scene != null and get_tree().current_scene.name == "MainMenu",
 		"Vom Zuhause geht es zurueck ins Hauptmenue")
@@ -268,50 +273,101 @@ func _test_home() -> void:
 	if home == null:
 		return
 
-	var list: VBoxContainer = _node(home, "%CatList")
-	_check(list.get_child_count() == 2, "Fuer jede Katze gibt es eine Karte")
+	var player: Player = home.get_node("Player")
+	var hud: HomeHUD = home.get("hud")
+	var simulation: HomeSimulation = home.get("simulation")
+	var actors: Dictionary = home.get("_cat_actors")
+	_check(actors.size() == 2, "Fuer jede Hauskatze gibt es eine laufende Darstellung")
+	_check(GameState.home.items.size() == 6, "Die kostenlose Grundausstattung ist vorhanden")
+	var touch: CanvasLayer = home.get_node("TouchControls")
+	touch.call("set_forced", true)
+	for kind in ["food", "water"]:
+		var item := GameState.home.item_by_id("starter_" + kind)
+		player.position = HomeCatalog.world(item.port())
+		await _home_action(home)
+		_check(item.stock > 0, "%s laesst sich per Touch-Kontextaktion auffuellen" % kind)
 
-	# Jede Pflegeaktion auf jeder Karte einmal ausloesen.
-	var pressed := 0
-	for card in list.get_children():
-		var buttons: HBoxContainer = card.get_node("Row/Body/ButtonsBox")
-		for button in buttons.get_children():
-			(button as Button).pressed.emit()
-			pressed += 1
-			await _wait(0.05)
-	_check(pressed == 8, "Alle vier Pflegeaktionen auf beiden Karten ausloesbar (%d)" % pressed)
+	var cat: CatData = GameState.home_cats[0]
+	var state: HomeCatState = GameState.home.cats[cat.id]
+	player.position = state.position + Vector2(0, 10)
+	await _home_action(home)
+	_check(simulation.held_cat_id == cat.id, "Eine Hauskatze laesst sich aufnehmen")
+	for kind in ["wash", "vet"]:
+		var station := GameState.home.item_by_id("starter_" + kind)
+		player.position = HomeCatalog.world(station.port())
+		await _home_action(home)
+		_check(simulation.is_caring(), "Die Station %s beginnt die Pflege" % kind)
+		await _wait(HomeSimulation.CARE_SECONDS + 0.2)
+		_check(not simulation.is_caring(), "Die Station %s beendet die Pflege" % kind)
+	player.position += Vector2(0, 48)
+	await _home_action(home)
+	_check(simulation.held_cat_id.is_empty(), "Die Hauskatze laesst sich absetzen")
+	var litter := GameState.home.item_by_id("starter_litter")
+	litter.dirt = HomeCatalog.capacity("litter")
+	player.position = HomeCatalog.world(litter.port())
+	await _home_action(home)
+	_check(litter.dirt == 0, "Die Reinigung wird aus der Welt bedient")
 
-	# Abklingzeit abwarten, damit auch der Timer-Pfad einmal laeuft.
-	await _wait(0.6)
-
-	# Laden auf, jedes Upgrade kaufen, wieder zu.
-	_press(home, "%ShopButton")
+	_press(hud, "%ShopButton")
 	await _wait(0.2)
-	_check(_node(home, "%ShopPanel").visible, "Der Laden laesst sich oeffnen")
-
-	var shop: VBoxContainer = _node(home, "%ShopList")
+	_check(hud.modal_kind == "shop", "Der Laden laesst sich oeffnen")
+	_check(get_tree().paused, "Der geoeffnete Laden pausiert die Hausversorgung")
+	var before := cat.hunger
+	await _wait(0.2)
+	_check(is_equal_approx(cat.hunger, before), "Beduerfnisse stehen im Laden still")
 	var bought := 0
-	for row in shop.get_children():
-		var buy := row.get_node_or_null("Buy") as Button
+	for id: String in GameState.UPGRADES:
+		var buy := hud.get_node_or_null("%Upgrade_" + id) as Button
 		if buy != null and not buy.disabled:
 			buy.pressed.emit()
 			bought += 1
 			await _wait(0.05)
 	_check(bought > 0, "Ausbauten lassen sich kaufen (%d)" % bought)
-
-	_press(home, "%ShopCloseButton")
+	_press(hud, "%ModalCloseButton")
 	await _wait(0.2)
-	_check(not _node(home, "%ShopPanel").visible, "Der Laden laesst sich schliessen")
+	_check(hud.modal_kind.is_empty() and not get_tree().paused, "Der Laden laesst sich schliessen")
+
+	_press(hud, "%FurnishButton")
+	_press(hud, "%Buy_toy")
+	_check(GameState.home.items.size() == 7, "Ein neues Spielzeug landet im Inventar")
+	var toy: HomeItemData = GameState.home.items.back()
+	var old_cell := toy.cell
+	player.position = HomeCatalog.world(Vector2i(16, 11))
+	_press(hud, "%Select_" + toy.id)
+	await _wait(0.2)
+	_check(home.get("_preview") != null, "Ein Gegenstand bekommt eine Platzierungsvorschau")
+	await _home_action(home, "RotateButton")
+	var preview: HomeItemActor = home.get("_preview")
+	_check(preview.data.turns == 1, "Drehen funktioniert ueber Touch")
+	var hint_panel: Control = hud.get("_hint_panel")
+	_check(hint_panel.get_global_rect().end.y <= hud.get_viewport_rect().end.y,
+		"Mehrzeilige Einrichtungshinweise bleiben innerhalb des Bildschirms")
+	_check(not toy.placed and toy.cell == old_cell, "Die Vorschau veraendert noch keine Hausdaten")
+	await _home_action(home)
+	_check(toy.placed, "Die Kontextaktion stellt das Spielzeug auf")
+	_press(hud, "%FurnishButton")
+	_press(hud, "%Select_" + toy.id)
+	await _wait(0.2)
+	await _home_action(home, "StoreButton")
+	_check(not toy.placed, "Einlagern funktioniert ueber Touch")
+	_press(hud, "%FurnishButton")
+	_press(hud, "%Select_" + toy.id)
+	await _wait(0.2)
+	_press(hud, "%FurnishButton")
+	_check(home.get("_preview") == null and not toy.placed, "Abbrechen verwirft nur die Vorschau")
+	_check(not Input.is_action_pressed("interact") and not Input.is_action_pressed("home_rotate"),
+		"Die Touch-Aktionen bleiben nicht gedrueckt")
 
 	# Adoption ausloesen -- dabei wird die Karte mitten im Betrieb entfernt.
 	_adoption_seen = false
 	GameState.cat_adopted.connect(_on_cat_adopted)
-	for cat in GameState.home_cats.duplicate():
-		cat.hunger = 100.0
-		cat.thirst = 100.0
-		cat.cleanliness = 100.0
-		cat.health = 100.0
-		cat.recovery_timer = CatData.RECOVERY_SECONDS - 0.1
+	for recovered_cat in GameState.home_cats.duplicate():
+		recovered_cat.hunger = 100.0
+		recovered_cat.thirst = 100.0
+		recovered_cat.cleanliness = 100.0
+		recovered_cat.health = 100.0
+		recovered_cat.enrichment = 100.0
+		recovered_cat.recovery_timer = CatData.RECOVERY_SECONDS - 0.1
 	await _wait(0.8)
 	GameState.cat_adopted.disconnect(_on_cat_adopted)
 	_check(_adoption_seen, "Eine Vermittlung mitten im Betrieb bricht nichts")
@@ -322,6 +378,88 @@ func _test_home() -> void:
 
 func _on_cat_adopted(_cat: CatData, _reward: int) -> void:
 	_adoption_seen = true
+
+
+func _home_action(home: Node, button_name: String = "ActionButton") -> void:
+	await _wait(0.05)
+	var button: Button = home.get_node("TouchControls/Root/" + button_name)
+	button.button_down.emit()
+	await _wait(0.06)
+	button.button_up.emit()
+	await _wait(0.06)
+
+
+func _test_touch_furnishing() -> void:
+	print("--- Echte Touch-Gesten beim Einrichten ---")
+	GameState.reset()
+	var home := await _load_scene("res://scenes/home/home_scene.tscn")
+	if home == null:
+		return
+	var touch: CanvasLayer = home.get_node("TouchControls")
+	touch.call("set_forced", true)
+	var hud: HomeHUD = home.get("hud")
+	var player: Player = home.get_node("Player")
+	var food := GameState.home.item_by_id("starter_food")
+	var original_cell := food.cell
+	var emulation_before := Input.emulate_mouse_from_touch
+	Input.emulate_mouse_from_touch = true
+	await _screen_tap(hud.get_node("%FurnishButton"))
+	_check(hud.modal_kind == "furnish", "Eine echte Beruehrung oeffnet den Einrichtungskatalog")
+	if hud.modal_kind == "furnish":
+		await _screen_tap(hud.get_node("%Select_starter_food"))
+		var preview: HomeItemActor = home.get("_preview")
+		_check(preview != null and not get_tree().paused,
+			"Eine echte Beruehrung waehlt einen Gegenstand zum Versetzen")
+		if preview != null:
+			var joystick: TouchJoystick = home.get_node("TouchControls/Root/Joystick")
+			var movement_hint: Label = home.get_node("TouchControls/Root/MovementHint")
+			_check(joystick.show_idle_hint and movement_hint.is_visible_in_tree(),
+				"Der Joystick ist beim Einrichten schon vor der ersten Beruehrung erkennbar")
+			var hint: Label = hud.get("_hint")
+			_check(hint.text.contains("Joystick") and not hint.text.contains("R drehen"),
+				"Der Einrichtungshinweis beschreibt die Touch-Bedienung")
+			var origin := joystick.get_global_rect().get_center()
+			var start := player.position
+			_screen_touch(origin, 0, true)
+			await _wait(0.05)
+			var drag := InputEventScreenDrag.new()
+			drag.index = 0
+			drag.position = origin + Vector2(0, -60)
+			drag.relative = Vector2(0, -60)
+			get_viewport().push_input(drag, true)
+			await _wait(0.6)
+			_check(player.position.y < start.y - 20,
+				"Ein Finger am Joystick bewegt Spielfigur und Platzierungsvorschau")
+			await _screen_tap(home.get_node("TouchControls/Root/ActionButton"), 1)
+			_check(home.get("_preview") == null and food.cell != original_cell,
+				"Ein zweiter Finger stellt den Gegenstand waehrend der Joystick-Geste um")
+			_check(Input.is_action_pressed("move_up"),
+				"Der zweite Finger unterbricht den gehaltenen Joystick nicht")
+			_check(not joystick.show_idle_hint and not movement_hint.is_visible_in_tree(),
+				"Nach dem Aufstellen kehrt die normale dynamische Touch-Anzeige zurueck")
+			_screen_touch(drag.position, 0, false)
+			await _wait(0.1)
+			_check(Input.get_vector("move_left", "move_right", "move_up", "move_down").is_zero_approx(),
+				"Nach dem Loslassen bleiben keine Bewegungsaktionen aktiv")
+	Input.emulate_mouse_from_touch = emulation_before
+	home.queue_free()
+	await _wait(0.2)
+
+
+func _screen_tap(control: Control, index: int = 0) -> void:
+	var point := control.get_global_rect().get_center()
+	_screen_touch(point, index, true)
+	await _wait(0.06)
+	_screen_touch(point, index, false)
+	await _wait(0.2)
+
+
+func _screen_touch(point: Vector2, index: int, pressed: bool) -> void:
+	var event := InputEventScreenTouch.new()
+	event.position = point
+	event.index = index
+	event.pressed = pressed
+	get_viewport().push_input(event, true)
 
 
 # --- Rettung -----------------------------------------------------------------

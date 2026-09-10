@@ -22,6 +22,7 @@ func _ready() -> void:
 
 func _capture_after_delay() -> void:
 	await get_tree().create_timer(delay_seconds).timeout
+	_apply_preview()
 
 	# Zwei Frames abwarten, damit das Bild wirklich fertig gezeichnet ist.
 	await RenderingServer.frame_post_draw
@@ -36,3 +37,20 @@ func _capture_after_delay() -> void:
 
 	if quit_after:
 		get_tree().quit(0 if error == OK else 1)
+
+
+func _apply_preview() -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	if "--touch-preview" in OS.get_cmdline_user_args():
+		var touch := scene.get_node_or_null("TouchControls")
+		if touch != null:
+			# Nur diese Instanz umstellen, keine Benutzereinstellung speichern.
+			touch.set("_forced", true)
+			touch.call("_apply_visibility")
+	for argument in OS.get_cmdline_user_args():
+		if argument == "--home-preview=furnish" and scene.has_method("_open_modal"):
+			scene.call("_open_modal", "furnish")
+		elif argument == "--home-preview=placement" and scene.has_method("start_placement"):
+			scene.call("start_placement", "starter_toy")

@@ -1,14 +1,14 @@
 ## Datensatz einer einzelnen Katze.
 ##
 ## Haelt sowohl die Werte fuer die Rettungs-Phase (Scheu, Fellfarbe) als auch
-## die vier Pflege-Beduerfnisse fuer die Heim-Phase.
+## die fuenf Pflege-Beduerfnisse fuer die Heim-Phase.
 class_name CatData
 extends Resource
 
 enum State {
 	WILD,     ## Streunt noch im Level herum
 	CARRIED,  ## Wird gerade getragen
-	AT_HOME,  ## Liegt zu Hause im Koerbchen und wird gepflegt
+	AT_HOME,  ## Lebt und wird zu Hause gepflegt
 	ADOPTED,  ## Genesen und vermittelt
 }
 
@@ -18,7 +18,7 @@ const NEED_MAX := 100.0
 ## Ab diesem Wert gilt ein Beduerfnis als erfuellt.
 const RECOVERY_THRESHOLD := 80.0
 
-## So lange muessen *alle* vier Werte oben bleiben, bis die Katze genesen ist.
+## So lange muessen alle fuenf Werte oben bleiben, bis die Katze genesen ist.
 const RECOVERY_SECONDS := 30.0
 
 ## Anzahl der verfuegbaren Fellvarianten.
@@ -42,6 +42,7 @@ const NAMES: PackedStringArray = [
 @export_range(0.0, NEED_MAX) var thirst: float = 50.0
 @export_range(0.0, NEED_MAX) var cleanliness: float = 50.0
 @export_range(0.0, NEED_MAX) var health: float = 50.0
+@export_range(0.0, NEED_MAX) var enrichment: float = 100.0
 
 ## Wie lange alle Beduerfnisse schon ueber der Schwelle liegen.
 @export var recovery_timer: float = 0.0
@@ -60,31 +61,34 @@ static func create_random() -> CatData:
 	cat.thirst = randf_range(10.0, 40.0)
 	cat.cleanliness = randf_range(5.0, 30.0)
 	cat.health = randf_range(25.0, 55.0)
+	cat.enrichment = randf_range(20.0, 45.0)
 	cat.recovery_timer = 0.0
 	return cat
 
 
-## Alle vier Beduerfnisse als Dictionary -- praktisch fuer UI-Schleifen.
+## Alle fuenf Beduerfnisse als Dictionary.
 func needs() -> Dictionary:
 	return {
 		"hunger": hunger,
 		"thirst": thirst,
 		"cleanliness": cleanliness,
 		"health": health,
+		"enrichment": enrichment,
 	}
 
 
-## Durchschnitt der vier Werte, z.B. fuer eine Gesamtanzeige.
+## Durchschnitt der fuenf Werte.
 func wellbeing() -> float:
-	return (hunger + thirst + cleanliness + health) * 0.25
+	return (hunger + thirst + cleanliness + health + enrichment) / 5.0
 
 
-## Liegen alle vier Werte ueber der Genesungsschwelle?
+## Liegen alle fuenf Werte ueber der Genesungsschwelle?
 func all_needs_met() -> bool:
 	return hunger >= RECOVERY_THRESHOLD \
 		and thirst >= RECOVERY_THRESHOLD \
 		and cleanliness >= RECOVERY_THRESHOLD \
-		and health >= RECOVERY_THRESHOLD
+		and health >= RECOVERY_THRESHOLD \
+		and enrichment >= RECOVERY_THRESHOLD
 
 
 ## Fortschritt Richtung Adoption, 0.0 bis 1.0.
@@ -103,6 +107,7 @@ func to_dict() -> Dictionary:
 		"thirst": thirst,
 		"cleanliness": cleanliness,
 		"health": health,
+		"enrichment": enrichment,
 		"recovery_timer": recovery_timer,
 	}
 
@@ -118,5 +123,6 @@ static func from_dict(data: Dictionary) -> CatData:
 	cat.thirst = clampf(float(data.get("thirst", 50.0)), 0.0, NEED_MAX)
 	cat.cleanliness = clampf(float(data.get("cleanliness", 50.0)), 0.0, NEED_MAX)
 	cat.health = clampf(float(data.get("health", 50.0)), 0.0, NEED_MAX)
+	cat.enrichment = clampf(float(data.get("enrichment", NEED_MAX)), 0.0, NEED_MAX)
 	cat.recovery_timer = maxf(float(data.get("recovery_timer", 0.0)), 0.0)
 	return cat

@@ -10,6 +10,7 @@ extends SceneTree
 
 const REQUIRED_ACTIONS: PackedStringArray = [
 	"move_left", "move_right", "move_up", "move_down", "interact", "sprint", "pause",
+	"home_furnish", "home_rotate", "home_store",
 ]
 
 const REQUIRED_AUTOLOADS: PackedStringArray = [

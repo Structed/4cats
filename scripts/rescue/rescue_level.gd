@@ -30,6 +30,7 @@ var _home_cell: Vector2i
 
 
 func _ready() -> void:
+	GameState.simulation_active = true
 	add_to_group("rescue_level")
 
 	_generator = LevelGenerator.new(MAP_WIDTH, MAP_HEIGHT)

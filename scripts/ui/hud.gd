@@ -26,6 +26,8 @@ func _ready() -> void:
 
 	GameState.carried_changed.connect(_on_carried_changed)
 	GameState.coins_changed.connect(_on_coins_changed)
+	GameState.cat_adopted.connect(_on_cat_adopted)
+	SaveManager.save_failed.connect(set_hint)
 
 	_home_button.pressed.connect(_on_home_pressed)
 	_resume_button.pressed.connect(func() -> void: toggle_pause())
@@ -46,6 +48,10 @@ func _process(delta: float) -> void:
 func set_hint(text: String) -> void:
 	_hint_label.text = text
 	_hint_timer = HINT_SECONDS
+
+
+func _on_cat_adopted(cat: CatData, reward: int) -> void:
+	set_hint("%s hat ein Zuhause gefunden! +%d Münzen" % [cat.cat_name, reward])
 
 
 func toggle_pause() -> void:

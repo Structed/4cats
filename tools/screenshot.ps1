@@ -27,7 +27,12 @@ param(
     [int]$TimeoutSeconds = 45,
 
     ## Fuellt vor der Aufnahme Beispieldaten ein (nuetzlich fuers Zuhause).
-    [switch]$Demo
+    [switch]$Demo,
+
+    [switch]$Touch,
+
+    [ValidateSet('play', 'furnish', 'placement')]
+    [string]$HomeView = 'play'
 )
 
 Set-StrictMode -Version Latest
@@ -52,6 +57,11 @@ $arguments = @(
     "--screenshot=$godotOutput"
 )
 if ($Demo) { $arguments += '--demo' }
+if ($Touch) { $arguments += '--touch-preview' }
+if ($HomeView -ne 'play') {
+    if ($Scene -ne 'home') { throw 'HomeView ist nur fuer die Hausszene verfuegbar.' }
+    $arguments += "--home-preview=$HomeView"
+}
 
 Write-Host "Starte: $Scene -> $godotOutput"
 $process = Start-Process -FilePath $GodotPath -ArgumentList $arguments -PassThru -NoNewWindow
