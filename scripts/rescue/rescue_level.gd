@@ -38,6 +38,7 @@ func _ready() -> void:
 	_setup_home_zone()
 	_place_player()
 	_setup_camera()
+	_setup_home_navigation()
 	_spawn_cats()
 	_spawn_cars()
 	_spawn_dogs()
@@ -87,6 +88,16 @@ func _setup_camera() -> void:
 	_camera.limit_top = 0
 	_camera.limit_right = int(world.x)
 	_camera.limit_bottom = int(world.y)
+
+
+func _setup_home_navigation() -> void:
+	var obstacles: Array[Control] = [
+		$HomeZone/Label,
+		$TouchControls/Root/Joystick,
+		$TouchControls/Root/ActionButton,
+		$TouchControls/Root/SprintButton,
+	]
+	_hud.call("set_home_navigation", _player, _home_zone, obstacles)
 
 
 func _spawn_cats() -> void:
