@@ -52,7 +52,7 @@ func _run() -> void:
 	print("  Ziel: %s, Entfernung %.0f px, Scheu %.2f"
 		% [target.data.cat_name, start_distance, target.data.shyness])
 
-	var caught := await _walk_to_and_catch(player, target)
+	var caught := await _walk_to_and_catch(level, player, target)
 
 	_check(caught, "Der Spieler kann eine Katze einfangen")
 	_check(GameState.carried_cats.size() == 1, "Die Katze liegt danach im Tragekorb")
@@ -66,14 +66,53 @@ func _run() -> void:
 	_finish(level)
 
 
-## Geht auf die Katze zu, wartet auf Vertrauen und hebt sie auf.
-func _walk_to_and_catch(player: Player, target: Cat) -> bool:
+## Baut ein Gitter fuer die Wegfindung: jede Kachel mit einem Haus oder Baum
+## darauf gilt als versperrt. Ohne echte Wegfindung bleibt der Spieler an
+## Haeuserbloecken haengen und erreicht die Katze nie -- genau das liess den
+## Spieltest in der CI sporadisch scheitern.
+func _build_pathfinder(level: Node2D) -> AStarGrid2D:
+	var generator: LevelGenerator = level.get("_generator")
+	var astar := AStarGrid2D.new()
+	astar.region = Rect2i(0, 0, generator.width, generator.height)
+	astar.cell_size = Vector2(LevelGenerator.TILE_SIZE, LevelGenerator.TILE_SIZE)
+	# Keine Diagonalen durch Hausecken -- sonst bleibt der Spieler an der
+	# Ecke haengen, obwohl die Wegfindung dort einen Weg sieht.
+	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
+	astar.update()
+
+	for y in generator.height:
+		for x in generator.width:
+			var cell := Vector2i(x, y)
+			if generator.is_blocked(cell):
+				astar.set_point_solid(cell)
+	return astar
+
+
+## Liefert die Wegpunkte von `from` nach `to` als Weltkoordinaten, oder ein
+## leeres Array, wenn keine Kachel dort begehbar ist.
+func _find_path(astar: AStarGrid2D, from: Vector2, to: Vector2) -> PackedVector2Array:
+	var from_cell := LevelGenerator.world_to_cell(from)
+	var to_cell := LevelGenerator.world_to_cell(to)
+	if astar.is_point_solid(from_cell) or astar.is_point_solid(to_cell):
+		return PackedVector2Array()
+	var path := astar.get_id_path(from_cell, to_cell)
+	var points := PackedVector2Array()
+	for cell in path:
+		points.append(LevelGenerator.cell_to_world(cell))
+	return points
+
+
+## Geht auf die Katze zu, wartet auf Vertrauen und hebt sie auf. Die
+## Wegfindung umgeht dabei Haeuser und Baeume, statt blind auf die Katze
+## zuzulaufen.
+func _walk_to_and_catch(level: Node2D, player: Player, target: Cat) -> bool:
+	var astar := _build_pathfinder(level)
 	var elapsed := 0.0
 	var max_trust := 0.0
 	var closest := INF
 	var reported := false
-	var stuck_since := 0.0
-	var last_position := player.global_position
+	var path: PackedVector2Array = []
+	var path_age := 0.0
 
 	while elapsed < TIMEOUT:
 		if not is_instance_valid(target) or target.is_queued_for_deletion():
@@ -83,25 +122,28 @@ func _walk_to_and_catch(player: Player, target: Cat) -> bool:
 		var distance := to_cat.length()
 		closest = minf(closest, distance)
 
-		# Gemuetlich hingehen; im Nahbereich stehen bleiben und warten.
-		if distance > Cat.TRUST_RADIUS * 0.55:
-			_press_towards(to_cat)
-		else:
+		if distance <= Cat.TRUST_RADIUS * 0.55:
+			# Nah genug -- stehen bleiben und Vertrauen aufbauen lassen.
 			_release_movement()
+			path.clear()
+		else:
+			# Weg regelmaessig neu berechnen, weil die Katze selbst wandert.
+			path_age += 1.0 / TICKS_PER_SECOND
+			if path.is_empty() or path_age > 0.5:
+				path = _find_path(astar, player.global_position, target.global_position)
+				path_age = 0.0
+
+			while path.size() > 1 and player.global_position.distance_to(path[0]) < 6.0:
+				path.remove_at(0)
+
+			if path.is_empty():
+				# Keine Wegfindung moeglich (z. B. direkt am Rand) -- direkt zusteuern.
+				_press_towards(to_cat)
+			else:
+				_press_towards(path[0] - player.global_position)
 
 		await get_tree().physics_frame
 		elapsed += 1.0 / TICKS_PER_SECOND
-
-		# Haengt der Spieler an einer Hauswand fest? Dann seitlich ausweichen.
-		if player.global_position.distance_to(last_position) < 0.3 and distance > Cat.TRUST_RADIUS:
-			stuck_since += 1.0 / TICKS_PER_SECOND
-			if stuck_since > 0.4:
-				_press_towards(to_cat.orthogonal())
-				await _wait_seconds(0.5)
-				stuck_since = 0.0
-		else:
-			stuck_since = 0.0
-		last_position = player.global_position
 
 		max_trust = maxf(max_trust, target.trust)
 		if target.is_catchable():
@@ -146,8 +188,17 @@ func _test_sprint_scares(level: Node2D, player: Player) -> void:
 		_check(false, "Fuer die Gegenprobe ist noch eine Katze da")
 		return
 
-	# Direkt neben die Katze setzen und lossprinten.
-	player.global_position = target.global_position + Vector2(Cat.TRUST_RADIUS * 0.5, 0.0)
+	# Hunde raus aus dem Spiel: sie sollen hier nicht querschiessen und die
+	# Katze zufaellig ein zweites Mal aufschrecken, waehrend wir auf die
+	# Beruhigung warten.
+	for node in level.get_tree().get_nodes_in_group("dogs"):
+		node.queue_free()
+	await get_tree().process_frame
+
+	# Direkt neben die Katze setzen und lossprinten -- auf einer begehbaren
+	# Kachel, sonst kommt der Spieler nie auf Sprinttempo.
+	var generator: LevelGenerator = level.get("_generator")
+	player.global_position = _clear_spot_near(generator, target.global_position)
 	target.trust = 0.9
 	await get_tree().physics_frame
 
@@ -175,6 +226,19 @@ func _test_sprint_scares(level: Node2D, player: Player) -> void:
 		calm_after += 1.0 / TICKS_PER_SECOND
 	_check(target.state != Cat.State.FLEE,
 		"Die Katze beruhigt sich nach %.1f s wieder" % calm_after)
+
+
+## Sucht rund um `origin` eine unversperrte Stelle im Abstand `TRUST_RADIUS * 0.5`
+## -- die direkte Position kann auf einer Hauskachel liegen, dann kommt der
+## Spieler dort nie auf Sprinttempo.
+func _clear_spot_near(generator: LevelGenerator, origin: Vector2) -> Vector2:
+	var offset := Cat.TRUST_RADIUS * 0.5
+	for i in 8:
+		var angle := TAU * float(i) / 8.0
+		var candidate := origin + Vector2(offset, 0.0).rotated(angle)
+		if generator == null or not generator.is_blocked(LevelGenerator.world_to_cell(candidate)):
+			return candidate
+	return origin + Vector2(offset, 0.0)
 
 
 func _press_towards(direction: Vector2) -> void:
