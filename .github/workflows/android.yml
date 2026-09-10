@@ -23,7 +23,6 @@ env:
   PR_NUMBER: ${{ github.event.pull_request.number }}
   PR_URL: ${{ github.event.pull_request.html_url }}
   MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-  RELEASE_TAG: android-pr-${{ github.event.pull_request.number }}
   APK_ARTIFACT: 4cats-android-pr${{ github.event.pull_request.number }}
 
 jobs:
@@ -31,6 +30,10 @@ jobs:
     name: Release-APK bauen
     if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
 
     steps:
       - name: Merge und Signatur-Secrets prüfen
@@ -56,7 +59,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Build-Version vorbereiten
+        id: version
+        run: |
+          $version = & ./tools/set_build_version.ps1
+          @(
+            "version_name=$($version.VersionName)"
+            "version_code=$($version.VersionCode)"
+            "release_tag=$($version.ReleaseTag)"
+          ) | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
       - name: JDK 17 einrichten
         uses: actions/setup-java@v4
@@ -117,6 +131,8 @@ jobs:
 
       - name: Release-APK bauen und prüfen
         env:
+          APP_VERSION: ${{ steps.version.outputs.version_name }}
+          ANDROID_VERSION_CODE: ${{ steps.version.outputs.version_code }}
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/4cats-release.keystore
           GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_RELEASE_KEYSTORE_ALIAS }}
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
@@ -172,6 +188,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw 'Das APK-Manifest konnte nicht gelesen werden.'
           }
+          & ./tools/check_apk_version.ps1 -Manifest $manifest `
+            -VersionName $env:APP_VERSION -VersionCode $env:ANDROID_VERSION_CODE
           if (($manifest -join "`n") -match '(?m)^application-debuggable(?:\s|$)') {
             throw 'Das APK ist debuggable und darf nicht als Release veröffentlicht werden.'
           }
@@ -201,6 +219,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      APP_VERSION: ${{ needs.apk.outputs.version_name }}
+      ANDROID_VERSION_CODE: ${{ needs.apk.outputs.version_code }}
+      RELEASE_TAG: ${{ needs.apk.outputs.release_tag }}
 
     steps:
       - name: Geprüftes Release-APK herunterladen
@@ -217,6 +239,10 @@ jobs:
           $repository = $env:GITHUB_REPOSITORY
           $tag = $env:RELEASE_TAG
           $apk = 'build/android/4cats.apk'
+          if ($tag -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.([1-9][0-9]*)$' -or
+              $tag -cne $env:APP_VERSION -or ($tag -split '\.')[2] -cne $env:ANDROID_VERSION_CODE) {
+            throw 'Die Versionsangaben des APK-Builds fehlen oder passen nicht zusammen.'
+          }
           if (-not (Test-Path -LiteralPath $apk -PathType Leaf) -or (Get-Item -LiteralPath $apk).Length -eq 0) {
             throw 'Das geprüfte Release-APK fehlt oder ist leer.'
           }
@@ -256,12 +282,13 @@ jobs:
             $notes = @"
           Release-APK nach dem Merge von $env:PR_URL in ``main``.
 
+          Version: ``$env:APP_VERSION`` (Android-Code ``$env:ANDROID_VERSION_CODE``)
           Commit: ``$env:MERGE_SHA``
 
           Das APK ist mit dem dauerhaften Release-Schlüssel signiert und nicht debuggable.
           "@
             & gh release create $tag $apk --repo $repository --verify-tag `
-              --target $env:MERGE_SHA --title "Android nach PR #$env:PR_NUMBER" --notes $notes
+              --target $env:MERGE_SHA --title "4cats $env:APP_VERSION" --notes $notes
             if ($LASTEXITCODE -ne 0) {
               throw 'Das GitHub Release konnte nicht veröffentlicht werden.'
             }
@@ -300,6 +327,7 @@ jobs:
             '## Android-Release'
             ''
             "- Release: $($published.html_url)"
+            "- Version: ``$env:APP_VERSION`` (Android-Code ``$env:ANDROID_VERSION_CODE``)"
             "- Pull Request: $env:PR_URL"
             "- Commit: ``$env:MERGE_SHA``"
             "- Datei: ``4cats.apk`` ($($publishedApk[0].size) Bytes)"

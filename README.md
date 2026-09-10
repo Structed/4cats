@@ -87,6 +87,9 @@ Sprint auf Gehen zu wechseln.
 Die Touch-Bedienung erscheint automatisch auf Geräten mit Touchscreen. Zum Testen
 am PC lässt sie sich unter **Optionen → Touch-Steuerung immer zeigen** erzwingen.
 
+Die **Versionsnummer** steht unten rechts im Hauptmenü. Bei Fehlerberichten
+bitte diese Version angeben.
+
 ## Aufbau
 
 ```
@@ -172,7 +175,7 @@ pwsh tools/godot.ps1 --path .
 pwsh tools/godot.ps1 --path . -- --start=rescue
 pwsh tools/godot.ps1 --path . -- --start=home --demo
 
-# Projektkonfiguration prüfen (Eingaben, Autoloads, Szenen)
+# Projektkonfiguration prüfen (Eingaben, Autoloads, Szenen, Versionen)
 pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
 
 # Spiellogik testen (Retten, Pflegen, Vermitteln, Speichern, Levelaufbau)
@@ -186,6 +189,9 @@ pwsh tools/godot.ps1 --headless --path . -- --smoketest
 
 # Alle Skripte auf Übersetzungsfehler prüfen
 pwsh tools/lint_scripts.ps1
+
+# Automatische Versionsberechnung und APK-Metadaten prüfen
+pwsh tools/test_versioning.ps1
 
 # Übersichtsbild eines erzeugten Viertels
 pwsh tools/godot.ps1 --headless --path . --script res://tools/preview_level.gd -- --out=level.png
@@ -207,10 +213,14 @@ Die fünf Prüfungen decken unterschiedliche Fehlerklassen ab:
 | Prüfung | Findet |
 |---|---|
 | `lint_scripts.ps1` | Übersetzungsfehler in **jedem** Skript – auch in Dateien, die im Spiel selten geladen werden |
-| `check_project.gd` | Fehlende Eingaben, Autoloads, Szenen; falscher Renderer |
+| `check_project.gd` | Fehlende Eingaben, Autoloads, Szenen; falscher Renderer oder inkonsistente Versionen |
 | `--test` | Regeln: Tragen, Hausversorgung, Einrichtung, Vermittlung, Migration, Speichern, Tempo-Verhältnisse |
 | `--playtest` | Katze mit echter Physik fangen und über räumliche Pflege zu Hause vermitteln |
 | `--smoketest` | Laufzeitfehler in Szenen, Kontextaktionen, Touch-Bedienung, Einrichtung und Menüs |
+
+Zusätzlich prüft `test_versioning.ps1` die Versionsberechnung mit verschiedenen
+Git-Merge-Arten, wiederholten Builds und ungültigen Konfigurationen sowie die
+Versionskontrolle der APK-Metadaten.
 
 Der **Spieltest** ist die wichtigste Absicherung für das Rettungs-Gameplay: Er
 lädt das echte Level und lässt den Spieler mit echter Physik eine Katze
@@ -240,6 +250,12 @@ nicht weggerollt sind, bevor jemand nachsehen kann.
 ### Bauen
 
 Godot legt Zielordner nicht selbst an – vorher anlegen.
+
+Für lokale Builds mit derselben Versionsberechnung wie in CI zuerst
+`pwsh tools/set_build_version.ps1` ausführen. Das benötigt die vollständige
+Git-Historie und aktualisiert die lokalen Projekt- und Android-Versionsangaben;
+Details stehen unter „Versionierung und Obtainium“. Ohne diesen Schritt
+verwenden lokale Starts und Exporte die eingecheckte Entwicklungsversion.
 
 ```powershell
 # Windows
@@ -286,8 +302,8 @@ try {
 
 | Wann | Workflow | Ergebnis |
 |---|---|---|
-| Jeder Push und jeder Pull Request | `ci.yml` | Alle Prüfungen, dazu die Windows-Fassung als Artefakt `4cats-windows` |
-| Sobald ein Pull Request nach **`main` gemergt** wird | `android.yml` | Release-signiertes APK als GitHub Release `android-pr-<Nummer>` und Artefakt `4cats-android-pr<Nummer>` |
+| Jeder Push und jeder Pull Request | `ci.yml` | Alle Prüfungen, dazu die versionierte Windows-Fassung als Artefakt `4cats-windows` |
+| Sobald ein Pull Request nach **`main` gemergt** wird | `android.yml` | Release-signiertes APK als GitHub Release mit Versions-Tag (z. B. `0.1.12`) und Artefakt `4cats-android-pr<Nummer>` |
 
 Das signierte `4cats.apk` liegt unter
 **[Releases](https://github.com/Structed/4cats/releases)** am jeweiligen normalen
@@ -304,7 +320,9 @@ hochgeladenes Release-APK.
 
 Der Android-Workflow verwendet ausschließlich `--export-release` und prüft die
 Signatur gegen den dauerhaften Schlüssel sowie das ausgeschaltete
-Debuggable-Flag. Nur der nachfolgende Veröffentlichungsjob erhält
+Debuggable-Flag. Außerdem müssen Paketkennung, Versionsname und Versionscode
+im **fertigen APK** den erwarteten Angaben entsprechen. Nur der nachfolgende
+Veröffentlichungsjob erhält
 `contents: write`; der Build bleibt lesend. Der privilegierte
 `pull_request_target`-Auslöser ist auf geschlossene, tatsächlich nach `main`
 gemergte PRs beschränkt und checkt niemals einen ungemergten PR-Head aus.
@@ -312,6 +330,64 @@ gemergte PRs beschränkt und checkt niemals einen ungemergten PR-Head aus.
 Beide Workflows holen Godot über dieselbe Aktion `.github/actions/setup-godot`.
 Eine neue Godot-Version wird deshalb nur in `GODOT_VERSION` der beiden Workflows
 geändert, nicht in der Installationslogik.
+
+### Versionierung und Obtainium
+
+`tools/set_build_version.ps1` bildet vor dem Import und Export die gemeinsame
+Version für Windows und Android. Die Versionsreihe `MAJOR.MINOR` stammt aus
+`application/config/version` in `project.godot` (anfangs `0.1`). Als dritte
+Komponente dient die Anzahl der **First-Parent-Commits bis zum gebauten Commit**:
+`git rev-list --first-parent --count HEAD`.
+
+Für den Zähler `12` ergeben sich:
+
+| Stelle | Wert |
+|---|---|
+| Projektversion, Anzeige im Hauptmenü und Android-`versionName` | `0.1.12` |
+| Android-`versionCode` | `12` |
+| GitHub-Release-Tag | `0.1.12` |
+| Release-Titel und APK-Datei | `4cats 0.1.12`, `4cats.apk` |
+
+Der Zähler steigt entlang von `main` auch bei Squash- und Rebase-Merges und
+hängt **nicht** von der PR-Nummer oder der Anzahl der Workflow-Versuche ab.
+Derselbe Commit erhält in beiden Workflows und bei Wiederholungen dieselbe
+Version. Lücken sind erlaubt; bei einer neuen Versionsreihe wird der
+Android-Code nicht zurückgesetzt. Beide Workflows laden deshalb die
+vollständige Git-Historie. Flache Checkouts werden vom Werkzeug abgelehnt.
+Die veröffentlichte `main`-Historie darf nicht nachträglich umgeschrieben
+werden, weil dadurch der Zähler zurückgehen könnte.
+
+Die eingecheckten Versionsangaben sind der lokale Entwicklungsstand, anfangs
+`0.1.0` mit Android-Code `1`. Die berechneten Build-Werte werden **nicht**
+automatisch committed oder zurückgepusht; auch lokal
+sollen diese generierten Änderungen nicht als Versions-Bump eingecheckt
+werden. Für einen bewussten Wechsel der Versionsreihe die Basisversion in
+`project.godot` und die entsprechende Entwicklungsversion `version/name` im
+Android-Preset gemeinsam anpassen, ohne den Code hochzusetzen. Die nächste
+Build-Vorbereitung setzt wieder die berechnete dritte Komponente und den Code.
+
+**In Obtainium einrichten:**
+
+1. `https://github.com/Structed/4cats` als App-Quelle hinzufügen.
+2. Als Sortiermethode **„Name“** wählen. Das sortiert die vollständigen Tags
+   natürlich, also `0.1.10` nach `0.1.9`, und die alten `android-pr-*`-Tags
+   vor den neuen numerischen Tags. **Nicht „Intelligenter Name“** verwenden:
+   Bei gemischten Formaten kann diese Methode die alte PR-Nummer als höhere
+   Version werten. Auch die Datumssortierung ist ungeeignet, weil ein älterer
+   Merge bei parallelen Builds erst nach einem neueren veröffentlicht werden kann.
+   Die Bevorzugung des GitHub-„Latest“-Releases ausschalten, damit die
+   Versionssortierung maßgeblich bleibt.
+3. `4cats.apk` verwenden und den **Release-Tag als Version** beibehalten.
+   Prereleases, „nur verfolgen“ und ein Veröffentlichungsdatum als
+   Versionsersatz sind nicht nötig.
+
+Release-Tag und APK-Versionsname stimmen direkt überein; es ist kein
+Regex-Umschreiben der Version nötig. Die bisherigen `android-pr-*`-Releases
+bleiben erhalten. Neue Versions-Tags ersetzen keine alten Tags oder Assets.
+Paketkennung `de.structed.fourcats` und dauerhafter Signaturschlüssel bleiben
+gleich, sodass sich bisherige **Release-APKs** ohne Deinstallation und ohne
+Verlust des Spielstands aktualisieren lassen. Das gilt nicht für alte
+Debug-APKs mit abweichender Signatur (siehe unten).
 
 ### Release-Signatur und Wiederherstellung
 

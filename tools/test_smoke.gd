@@ -225,6 +225,17 @@ func _test_main_menu() -> void:
 	if menu == null:
 		return
 
+	var version: String = ProjectSettings.get_setting("application/config/version")
+	var version_label := menu.get_node_or_null("%VersionLabel") as Label
+	_check(version_label != null and version_label.text == "Version %s" % version,
+		"Das Hauptmenue zeigt die tatsaechliche Projektversion")
+	if version_label != null:
+		_check(version_label.is_visible_in_tree()
+			and version_label.get_viewport_rect().encloses(version_label.get_global_rect()),
+			"Die Versionsanzeige liegt sichtbar innerhalb des Bildschirms")
+		_check(version_label.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+			"Die Versionsanzeige faengt keine Eingaben ab")
+
 	# Optionen auf und wieder zu.
 	_press(menu, "%OptionsButton")
 	await _wait(0.2)
