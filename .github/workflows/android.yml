@@ -1,30 +1,62 @@
 name: Android
 
-# Ein gemergter Pull Request soll ein installierbares APK hinterlassen.
-# Der Lauf haengt am geschlossenen PR (nicht am Push auf main), damit direkte
-# Pushes ohne PR keinen Build ausloesen.
+# Secrets sind auch nach Fork-Merges verfuegbar. Niemals ungemergten PR-Code
+# ausfuehren: nur geschlossene, gemergte PRs nach main und deren Merge-Commit.
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: android-release-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: pwsh
+
 env:
   GODOT_VERSION: "4.7.2"
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  PR_URL: ${{ github.event.pull_request.html_url }}
+  MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+  RELEASE_TAG: android-pr-${{ github.event.pull_request.number }}
+  APK_ARTIFACT: 4cats-android-pr${{ github.event.pull_request.number }}
 
 jobs:
   apk:
-    name: APK bauen
-    if: github.event.pull_request.merged == true
+    name: Release-APK bauen
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
+      - name: Merge und Signatur-Secrets prüfen
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          ANDROID_RELEASE_KEYSTORE_ALIAS: ${{ secrets.ANDROID_RELEASE_KEYSTORE_ALIAS }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          if ($env:MERGE_SHA -cnotmatch '^[0-9a-f]{40}$' -or $env:PR_NUMBER -notmatch '^[1-9][0-9]*$') {
+            throw 'Der gemergte Pull Request hat keine gültigen Merge-Metadaten.'
+          }
+          foreach ($name in @(
+            'ANDROID_RELEASE_KEYSTORE_BASE64',
+            'ANDROID_RELEASE_KEYSTORE_ALIAS',
+            'ANDROID_RELEASE_KEYSTORE_PASSWORD'
+          )) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "GitHub-Actions-Secret fehlt: $name. Release-Signatur gemäß README einrichten."
+            }
+          }
+
       - name: Repository auschecken
         uses: actions/checkout@v4
         with:
-          # Genau der Stand, der durch den Merge entstanden ist.
           ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
 
       - name: JDK 17 einrichten
         uses: actions/setup-java@v4
@@ -39,68 +71,233 @@ jobs:
 
       - name: Android SDK prüfen
         run: |
-          set -euo pipefail
-          if [ -z "${ANDROID_HOME:-}" ] || [ ! -d "${ANDROID_HOME}/build-tools" ]; then
-            echo "Kein Android SDK mit build-tools gefunden (ANDROID_HOME='${ANDROID_HOME:-}')." >&2
-            echo "Godot braucht apksigner und zipalign daraus, um das APK zu signieren." >&2
-            exit 1
-          fi
-          ls -1 "${ANDROID_HOME}/build-tools"
-
-      - name: Debug-Keystore erzeugen
-        run: |
-          set -euo pipefail
-          keytool -genkeypair -v \
-            -keystore "${RUNNER_TEMP}/debug.keystore" \
-            -alias androiddebugkey \
-            -storepass android -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if (-not $env:ANDROID_HOME -or
+              -not (Test-Path -LiteralPath (Join-Path $env:ANDROID_HOME 'build-tools') -PathType Container)) {
+            throw 'Kein Android SDK mit build-tools gefunden. Godot benötigt apksigner und zipalign.'
+          }
+          Get-ChildItem -LiteralPath (Join-Path $env:ANDROID_HOME 'build-tools') -Name
 
       - name: Godot-Editor-Einstellungen schreiben
         run: |
-          set -euo pipefail
-          # Godot sucht SDK und JDK in den Editor-Einstellungen; der Dateiname
-          # traegt Major.Minor der Godot-Version.
-          settings=~/.config/godot/editor_settings-${GODOT_VERSION%.*}.tres
-          mkdir -p ~/.config/godot
-          cat > "${settings}" <<EOF
+          $version = [version]$env:GODOT_VERSION
+          $directory = Join-Path $HOME '.config/godot'
+          New-Item -ItemType Directory -Path $directory -Force | Out-Null
+          $settings = Join-Path $directory "editor_settings-$($version.Major).$($version.Minor).tres"
+          @"
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
-          export/android/android_sdk_path = "${ANDROID_HOME}"
-          export/android/java_sdk_path = "${JAVA_HOME}"
-          EOF
-          cat "${settings}"
+          export/android/android_sdk_path = "$env:ANDROID_HOME"
+          export/android/java_sdk_path = "$env:JAVA_HOME"
+          "@ | Set-Content -LiteralPath $settings -Encoding utf8
 
       - name: Ressourcen importieren
-        run: godot --headless --path . --import
+        run: pwsh tools/godot.ps1 --headless --path . --import
 
-      - name: Android-Fassung bauen
+      - name: Release-Keystore bereitstellen
         env:
-          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ runner.temp }}/debug.keystore
-          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
-          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
         run: |
-          set -euo pipefail
-          mkdir -p build/android
-          godot --headless --path . --export-debug "Android" build/android/4cats.apk
+          $bytes = [Convert]::FromBase64String($env:ANDROID_RELEASE_KEYSTORE_BASE64)
+          if ($bytes.Length -eq 0) {
+            throw 'Der Release-Keystore ist leer.'
+          }
+          $path = Join-Path $env:RUNNER_TEMP '4cats-release.keystore'
+          $options = [IO.FileStreamOptions]::new()
+          $options.Mode = [IO.FileMode]::CreateNew
+          $options.Access = [IO.FileAccess]::Write
+          $options.UnixCreateMode = [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite
+          $stream = [IO.File]::Open($path, $options)
+          try {
+            $stream.Write($bytes, 0, $bytes.Length)
+          } finally {
+            $stream.Dispose()
+            [Array]::Clear($bytes, 0, $bytes.Length)
+          }
+
+      - name: Release-APK bauen und prüfen
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/4cats-release.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_RELEASE_KEYSTORE_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          $apk = 'build/android/4cats.apk'
+          New-Item -ItemType Directory -Path 'build/android' -Force | Out-Null
+          pwsh tools/godot.ps1 --headless --path . --export-release "Android" $apk
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Der Android-Release-Export ist fehlgeschlagen.'
+          }
+
+          $signerName = if ($IsWindows) { 'apksigner.bat' } else { 'apksigner' }
+          $aaptName = if ($IsWindows) { 'aapt.exe' } else { 'aapt' }
+          $tools = Get-ChildItem -LiteralPath (Join-Path $env:ANDROID_HOME 'build-tools') -Directory |
+            Where-Object {
+              $_.Name -match '^[0-9]+\.[0-9]+\.[0-9]+$' -and
+              (Test-Path -LiteralPath (Join-Path $_.FullName $signerName) -PathType Leaf) -and
+              (Test-Path -LiteralPath (Join-Path $_.FullName $aaptName) -PathType Leaf)
+            } |
+            Sort-Object { [version]$_.Name } -Descending |
+            Select-Object -First 1
+          if (-not $tools) {
+            throw 'Keine Android-Build-Tools mit apksigner und aapt gefunden.'
+          }
+
+          $certificate = Join-Path $env:RUNNER_TEMP '4cats-release-cert.der'
+          & keytool -exportcert -keystore $env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH `
+            -alias $env:GODOT_ANDROID_KEYSTORE_RELEASE_USER `
+            -storepass:env GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD -file $certificate
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Das Zertifikat des Release-Keystores konnte nicht gelesen werden.'
+          }
+          $expectedDigest = [Convert]::ToHexString(
+            [Security.Cryptography.SHA256]::HashData([IO.File]::ReadAllBytes($certificate))
+          ).ToLowerInvariant()
+          $verification = & (Join-Path $tools.FullName $signerName) verify --verbose --print-certs $apk
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Die APK-Signatur ist ungültig.'
+          }
+          $digests = @($verification |
+            Select-String -Pattern '^Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-fA-F]{64})$' |
+            ForEach-Object { $_.Matches[0].Groups[1].Value.ToLowerInvariant() })
+          if ($digests.Count -ne 1 -or $digests[0] -cne $expectedDigest) {
+            throw 'Das APK wurde nicht mit dem erwarteten Release-Schlüssel signiert.'
+          }
+
+          $manifest = & (Join-Path $tools.FullName $aaptName) dump badging $apk
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Das APK-Manifest konnte nicht gelesen werden.'
+          }
+          if (($manifest -join "`n") -match '(?m)^application-debuggable(?:\s|$)') {
+            throw 'Das APK ist debuggable und darf nicht als Release veröffentlicht werden.'
+          }
+
+      - name: Temporäre Signaturdateien entfernen
+        if: always()
+        run: |
+          foreach ($name in @('4cats-release.keystore', '4cats-release-cert.der')) {
+            $path = Join-Path $env:RUNNER_TEMP $name
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Force
+            }
+          }
 
       - name: APK als Artefakt ablegen
         uses: actions/upload-artifact@v4
         with:
-          name: 4cats-android-pr${{ github.event.pull_request.number }}
+          name: ${{ env.APK_ARTIFACT }}
           path: build/android/4cats.apk
           if-no-files-found: error
+          overwrite: true
 
-      - name: Zusammenfassung schreiben
+  release:
+    name: GitHub Release veröffentlichen
+    needs: apk
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Geprüftes Release-APK herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APK_ARTIFACT }}
+          path: build/android
+
+      - name: GitHub Release mit APK veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          size=$(du -h build/android/4cats.apk | cut -f1)
-          {
-            echo "## Android-Fassung"
-            echo
-            echo "- Artefakt: \`4cats-android-pr${{ github.event.pull_request.number }}\` (oben unter \"Artifacts\" herunterladbar)"
-            echo "- Datei: \`4cats.apk\` (${size})"
-            echo "- Signatur: Debug-Keystore -- zum Testen installierbar, nicht zur Veroeffentlichung"
-          } >> "$GITHUB_STEP_SUMMARY"
+          $PSNativeCommandUseErrorActionPreference = $false
+          $repository = $env:GITHUB_REPOSITORY
+          $tag = $env:RELEASE_TAG
+          $apk = 'build/android/4cats.apk'
+          if (-not (Test-Path -LiteralPath $apk -PathType Leaf) -or (Get-Item -LiteralPath $apk).Length -eq 0) {
+            throw 'Das geprüfte Release-APK fehlt oder ist leer.'
+          }
+
+          $refsJson = & gh api "repos/$repository/git/matching-refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Vorhandene Release-Tags konnten nicht gelesen werden.'
+          }
+          $matchingTags = @($refsJson | ConvertFrom-Json |
+            Where-Object { $_.ref -ceq "refs/tags/$tag" })
+          if ($matchingTags.Count -eq 0) {
+            & gh api --method POST "repos/$repository/git/refs" `
+              -f "ref=refs/tags/$tag" -f "sha=$env:MERGE_SHA" --silent
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Der Release-Tag konnte nicht erstellt werden.'
+            }
+          }
+          $tagCommit = & gh api "repos/$repository/commits/refs/tags/$tag" --jq .sha
+          if ($LASTEXITCODE -ne 0 -or $tagCommit -cne $env:MERGE_SHA) {
+            throw 'Der Release-Tag zeigt nicht auf diesen Merge-Commit und wird nicht verändert.'
+          }
+
+          # Der REST-Endpunkt nach Tag liefert keine unveroeffentlichten Entwuerfe.
+          $response = & gh release view $tag --repo $repository --json isDraft,isPrerelease,assets 2>&1
+          $responseCode = $LASTEXITCODE
+          $responseText = ($response | Out-String).Trim()
+          $release = $null
+          if ($responseCode -ne 0) {
+            if ($responseText -cne 'release not found') {
+              throw "Das Release konnte nicht gelesen werden: $responseText"
+            }
+          } else {
+            $release = $responseText | ConvertFrom-Json
+          }
+
+          if ($null -eq $release) {
+            $notes = @"
+          Release-APK nach dem Merge von $env:PR_URL in ``main``.
+
+          Commit: ``$env:MERGE_SHA``
+
+          Das APK ist mit dem dauerhaften Release-Schlüssel signiert und nicht debuggable.
+          "@
+            & gh release create $tag $apk --repo $repository --verify-tag `
+              --target $env:MERGE_SHA --title "Android nach PR #$env:PR_NUMBER" --notes $notes
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Das GitHub Release konnte nicht veröffentlicht werden.'
+            }
+          } else {
+            if ($release.isPrerelease) {
+              throw 'Der Tag gehört bereits zu einem Prerelease und wird nicht überschrieben.'
+            }
+            $assets = @($release.assets | Where-Object { $_.name -ceq '4cats.apk' })
+            if ($assets.Count -eq 0) {
+              & gh release upload $tag $apk --repo $repository
+              if ($LASTEXITCODE -ne 0) {
+                throw 'Das fehlende Release-APK konnte nicht hochgeladen werden.'
+              }
+            } elseif ($assets.Count -ne 1 -or $assets[0].state -ne 'uploaded' -or $assets[0].size -le 0) {
+              throw 'Das vorhandene Release-Asset ist unvollständig und benötigt eine manuelle Korrektur.'
+            }
+            if ($release.isDraft) {
+              & gh release edit $tag --repo $repository --draft=false
+              if ($LASTEXITCODE -ne 0) {
+                throw 'Der vorhandene Release-Entwurf konnte nicht veröffentlicht werden.'
+              }
+            }
+          }
+
+          $publishedJson = & gh api "repos/$repository/releases/tags/$tag"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Das veröffentlichte Release konnte nicht bestätigt werden.'
+          }
+          $published = $publishedJson | ConvertFrom-Json
+          $publishedApk = @($published.assets | Where-Object { $_.name -ceq '4cats.apk' })
+          if ($published.draft -or $published.prerelease -or $publishedApk.Count -ne 1 -or
+              $publishedApk[0].state -ne 'uploaded' -or $publishedApk[0].size -le 0) {
+            throw 'Das normale GitHub Release mit vollständigem APK fehlt.'
+          }
+          @(
+            '## Android-Release'
+            ''
+            "- Release: $($published.html_url)"
+            "- Pull Request: $env:PR_URL"
+            "- Commit: ``$env:MERGE_SHA``"
+            "- Datei: ``4cats.apk`` ($($publishedApk[0].size) Bytes)"
+            "- Actions-Artefakt: ``$env:APK_ARTIFACT``"
+            '- Signatur: dauerhafter Release-Schlüssel'
+          ) | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8

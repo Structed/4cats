@@ -10,6 +10,12 @@
 ## (GameState, SaveManager) nur dort zur Verfuegung stehen.
 extends Node
 
+const INDICATOR_VIEWPORTS: Array[Vector2] = [Vector2(640, 360), Vector2(880, 360)]
+const INDICATOR_DIRECTIONS: Array[Vector2] = [
+	Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN,
+	Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1),
+]
+
 const CAR_FACING_REGIONS := {
 	true: [Rect2i(272, 235, 16, 21), Rect2i(272, 267, 16, 21)],
 	false: [Rect2i(320, 235, 16, 21), Rect2i(320, 267, 16, 21)],
@@ -26,6 +32,7 @@ func _ready() -> void:
 func run_all() -> void:
 	_test_cat_data()
 	_test_movement_balance()
+	_test_home_indicator()
 	_test_car_directions()
 	_test_carrying()
 	_test_care_and_adoption()
@@ -56,6 +63,92 @@ func _check(condition: bool, description: String) -> void:
 
 
 # --- Tests -------------------------------------------------------------------
+
+func _test_home_indicator() -> void:
+	print("--- Wegweiser zum Zuhause ---")
+	var drawn_radius := 0.0
+	for point in HomeIndicator.ARROW_POINTS:
+		drawn_radius = maxf(drawn_radius, point.length())
+	_check(drawn_radius + HomeIndicator.OUTLINE_WIDTH * 0.5 <= HomeIndicator.MARKER_RADIUS,
+		"Der Sicherheitsradius umfasst den gesamten Pfeil samt Kontur")
+
+	for viewport_size in INDICATOR_VIEWPORTS:
+		var viewport_rect := Rect2(Vector2.ZERO, viewport_size)
+		var bounds := viewport_rect.grow(-HomeIndicator.MARKER_RADIUS - HomeIndicator.EDGE_GAP)
+		var center := viewport_rect.get_center()
+		for direction in INDICATOR_DIRECTIONS:
+			var target := center + direction * 2000.0
+			var position := HomeIndicator.calculate_position(center, target, viewport_rect)
+			var to_marker := position - center
+			_check(position.is_finite() and _indicator_fits(position, viewport_rect),
+				"Pfeil %s bleibt bei %s vollstaendig im Bild" % [direction, viewport_size])
+			_check(_indicator_on_edge(position, bounds)
+				and to_marker.dot(direction) > 0.0
+				and absf(to_marker.normalized().cross(direction.normalized())) < 0.001,
+				"Pfeil %s liegt auf dem richtigen Richtungsstrahl am Rand" % direction)
+
+		var visible_position := HomeIndicator.calculate_position(center + Vector2(50, 20),
+			center, viewport_rect)
+		_check(visible_position.is_equal_approx(center + HomeIndicator.HOME_OFFSET),
+			"Sichtbares Zuhause wird direkt darueber markiert")
+		var arrived_position := HomeIndicator.calculate_position(center, center, viewport_rect)
+		_check(arrived_position.is_finite() and arrived_position.is_equal_approx(visible_position),
+			"Auch direkt in der Heimzone bleibt die Markierung stabil")
+
+		for corner in [Vector2.ZERO, viewport_size - Vector2.ONE]:
+			var position := HomeIndicator.calculate_position(center, corner, viewport_rect)
+			_check(position.is_finite() and _indicator_fits(position, viewport_rect),
+				"Sichtbares Zuhause am Bildrand schneidet den Pfeil nicht ab")
+
+		var player_position := Vector2(80, 260)
+		var offscreen_target := Vector2(1800, -900)
+		var edge_position := HomeIndicator.calculate_position(player_position, offscreen_target,
+			viewport_rect)
+		_check(_indicator_on_edge(edge_position, bounds)
+			and absf((edge_position - player_position).normalized().cross(
+				(offscreen_target - player_position).normalized())) < 0.001,
+			"Eine nicht zentrierte Spielfigur liefert den richtigen Richtungsstrahl")
+
+		var obstacles: Array[Rect2] = [
+			Rect2(0, center.y - 45, 100, 90),
+			Rect2(0, center.y + 25, 140, 95),
+		]
+		var target := center + Vector2.LEFT * 2000.0
+		var avoided := HomeIndicator.calculate_position(center, target, viewport_rect, obstacles)
+		_check(_indicator_fits(avoided, viewport_rect) and _indicator_on_edge(avoided, bounds),
+			"Ausweichen vor ueberlappender Touch-UI behaelt die Randposition")
+		for obstacle in obstacles:
+			_check(not _indicator_rect(avoided).intersects(obstacle.grow(HomeIndicator.UI_GAP - 0.01)),
+				"Zwischen Pfeil und Bedienelement bleibt Platz")
+
+		var near_home_obstacles: Array[Rect2] = [
+			Rect2(center - Vector2(50, 60), Vector2(100, 50)),
+			Rect2(center - Vector2(10, 50), Vector2(90, 80)),
+		]
+		var near_home := HomeIndicator.calculate_position(center + Vector2(50, 0),
+			center, viewport_rect, near_home_obstacles)
+		_check(_indicator_fits(near_home, viewport_rect) and near_home.distance_to(center) < 100.0,
+			"Bei sichtbarem Zuhause weicht der Pfeil nur in dessen Naehe aus")
+		for obstacle in near_home_obstacles:
+			_check(not _indicator_rect(near_home).intersects(obstacle.grow(HomeIndicator.UI_GAP - 0.01)),
+				"Auch nahe am Zuhause bleiben Beschriftungen frei")
+
+
+func _indicator_rect(position: Vector2) -> Rect2:
+	var radius := Vector2.ONE * HomeIndicator.MARKER_RADIUS
+	return Rect2(position - radius, radius * 2.0)
+
+
+func _indicator_fits(position: Vector2, viewport_rect: Rect2) -> bool:
+	return viewport_rect.encloses(_indicator_rect(position))
+
+
+func _indicator_on_edge(position: Vector2, bounds: Rect2) -> bool:
+	return (is_equal_approx(position.x, bounds.position.x)
+		or is_equal_approx(position.x, bounds.end.x)
+		or is_equal_approx(position.y, bounds.position.y)
+		or is_equal_approx(position.y, bounds.end.y))
+
 
 ## Die Tempo-Werte muessen zueinander passen, sonst ist das Spiel unspielbar.
 ## Genau hier lag der urspruengliche Fehler: der Spieler war schneller als das

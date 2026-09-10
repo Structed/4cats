@@ -74,11 +74,16 @@ func run() -> PackedStringArray:
 		"Der echte Hausdurchlauf belohnt die Adoption genau einmal")
 	return await _finish(home)
 
+func _physics_deadline(seconds: float) -> int:
+	# Wie im Rettungstest nur ausgefuehrte Physikschritte zaehlen.
+	# Systempausen oder eine stockende Maschine verbrauchen keine Spielzeit.
+	return Engine.get_physics_frames() + ceili(seconds * Engine.physics_ticks_per_second)
+
 func _catch_cat(home: Node2D, id: String) -> bool:
 	var player: Player = home.get_node("Player")
 	var simulation: HomeSimulation = home.get("simulation")
-	var deadline := Time.get_ticks_msec() + 35000
-	while Time.get_ticks_msec() < deadline:
+	var deadline := _physics_deadline(35.0)
+	while Engine.get_physics_frames() < deadline:
 		if simulation.held_cat_id == id:
 			_release()
 			return true
@@ -100,16 +105,22 @@ func _walk(home: Node2D, target: Vector2) -> bool:
 	var player: Player = home.get_node("Player")
 	var simulation: HomeSimulation = home.get("simulation")
 	var route := simulation.layout.path(player.position, HomeCatalog.cell(target))
-	var deadline := Time.get_ticks_msec() + 30000
+	var deadline := _physics_deadline(30.0)
 	if route.is_empty():
+		printerr("Kein Hausweg von ", player.position, " nach ", target)
 		return false
-	while Time.get_ticks_msec() < deadline and not route.is_empty():
+	while Engine.get_physics_frames() < deadline and not route.is_empty():
 		route = _follow_route(player, route)
 		await get_tree().physics_frame
 	_release()
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	return player.position.distance_to(HomeCatalog.world(HomeCatalog.cell(target))) < 6.0
+	var arrived := player.position.distance_to(HomeCatalog.world(HomeCatalog.cell(target))) < 6.0
+	if not arrived:
+		printerr("Hausweg nicht erreicht: Position ", player.position, ", Ziel ", target,
+			", Restweg ", route, ", Physik aktiv ", player.is_physics_processing(),
+			", Pflege aktiv ", simulation.is_caring())
+	return arrived
 
 func _follow_route(player: Player, route: PackedVector2Array) -> PackedVector2Array:
 	while not route.is_empty() and player.position.distance_to(route[0]) < 3.0:
@@ -139,8 +150,8 @@ func _tap(action: String) -> void:
 	await get_tree().physics_frame
 
 func _until(condition: Callable, seconds: float) -> bool:
-	var deadline := Time.get_ticks_msec() + int(seconds * 1000)
-	while Time.get_ticks_msec() < deadline:
+	var deadline := _physics_deadline(seconds)
+	while Engine.get_physics_frames() < deadline:
 		if condition.call():
 			return true
 		await get_tree().physics_frame
