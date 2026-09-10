@@ -52,6 +52,11 @@ func goto_scene(path: String) -> void:
 
 
 func _change_scene_async(path: String) -> void:
+	var current := get_tree().current_scene
+	if current != null and current.has_method("prepare_to_leave"):
+		current.call("prepare_to_leave")
+	var was_active := GameState.simulation_active
+	GameState.simulation_active = false
 	await _fade_to(1.0)
 
 	# Vor jedem Wechsel sichern, damit nichts verloren geht.
@@ -59,8 +64,10 @@ func _change_scene_async(path: String) -> void:
 
 	var err := get_tree().change_scene_to_file(path)
 	if err != OK:
+		GameState.simulation_active = was_active
 		push_error("Szenenwechsel fehlgeschlagen (%s): %s" % [path, error_string(err)])
 	else:
+		GameState.simulation_active = path in [HOME, RESCUE]
 		# Einen Frame warten, damit die neue Szene wirklich im Baum haengt.
 		await get_tree().process_frame
 		scene_changed.emit(path)

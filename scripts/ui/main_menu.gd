@@ -23,6 +23,7 @@ const TOUCH_SETTING := "force_touch_controls"
 
 
 func _ready() -> void:
+	GameState.simulation_active = false
 	_set_options_visible(false)
 	_set_confirm_visible(false)
 	_continue_button.visible = SaveManager.has_save()

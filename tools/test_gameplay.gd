@@ -39,6 +39,9 @@ func run_all() -> void:
 	_test_upgrades()
 	_test_save_roundtrip()
 	_test_level_generation()
+	var home_suite: GDScript = load("res://tools/test_home_gameplay.gd")
+	var home_tests: RefCounted = home_suite.new()
+	_failures.append_array(home_tests.run(get_tree()))
 
 	print("")
 	if _failures.is_empty():
@@ -249,6 +252,7 @@ func _test_cat_data() -> void:
 	cat.thirst = 100.0
 	cat.cleanliness = 100.0
 	cat.health = 100.0
+	cat.enrichment = 100.0
 	_check(cat.all_needs_met(), "Voll versorgte Katze gilt als genesen")
 	_check(is_equal_approx(cat.wellbeing(), 100.0), "Gesamtwert stimmt")
 
@@ -293,6 +297,7 @@ func _test_care_and_adoption() -> void:
 	cat.thirst = 100.0
 	cat.cleanliness = 100.0
 	cat.health = 100.0
+	cat.enrichment = 100.0
 
 	var elapsed := 0.0
 	while elapsed < CatData.RECOVERY_SECONDS + 5.0 and adopted_cats.is_empty():
@@ -303,6 +308,7 @@ func _test_care_and_adoption() -> void:
 		cat.thirst = 100.0
 		cat.cleanliness = 100.0
 		cat.health = 100.0
+		cat.enrichment = 100.0
 
 	_check(adopted_cats.size() == 1, "Gesunde Katze wird nach der Genesungszeit vermittelt")
 	_check(GameState.home_cats.is_empty(), "Vermittelte Katze ist nicht mehr zu Hause")
@@ -380,7 +386,7 @@ func _test_save_roundtrip() -> void:
 		_check(is_equal_approx(restored.hunger, 77.0), "Beduerfniswerte bleiben erhalten")
 
 	# Beschaedigter Spielstand darf nicht zum Absturz fuehren.
-	var file := FileAccess.open(SaveManager.SAVE_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(SaveManager.save_path, FileAccess.WRITE)
 	file.store_string("{ kaputt ohne Ende")
 	file.close()
 	_check(not SaveManager.load_game(), "Beschaedigter Spielstand wird abgelehnt")

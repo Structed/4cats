@@ -107,6 +107,7 @@ foreach ($name in $Packs.Keys) {
 Write-Host ""
 Write-Host "Erzeuge die eigenen Katzen-Sprites..."
 & (Join-Path $PSScriptRoot 'generate_cat_sprites.ps1')
+& (Join-Path $PSScriptRoot 'generate_home_assets.ps1')
 
 Write-Host ""
 Write-Host "Fertig. Rohdownloads liegen in assets/_downloads (nicht im Repository)."

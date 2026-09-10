@@ -45,10 +45,17 @@ erzeugt, damit sie reproduzierbar bleiben:
 | `assets/icon/icon_192.png` | `tools/generate_icons.ps1` | Android-Launcher-Symbol |
 | `assets/icon/icon_adaptive_*_432.png` | `tools/generate_icons.ps1` | Adaptive Android-Symbole |
 | `resources/urban_tileset.tres` | `tools/generate_tileset.ps1` | TileSet aus dem RPG Urban Pack |
+| `assets/sprites/home_items.png` | `tools/generate_home_assets.ps1` | Sechs Katzenhaus-Gegenstände mit leeren, gefüllten, benutzten und verschmutzten Zuständen |
+| `assets/sprites/home_tiles.png` | `tools/generate_home_assets.ps1` | Holzboden, Wand und Ausgang des Katzenhauses |
+| `assets/sprites/home_icons.png` | `tools/generate_home_assets.ps1` | Bedarfssymbole für die Gedankenblasen der Katzen |
+| `resources/home_tileset.tres` | `tools/generate_home_assets.ps1` | TileSet aus den selbst erzeugten Hausgrafiken |
 
 Kenney hat kein Paket mit Katzen aus der Vogelperspektive, deshalb wurden die
 Katzen für dieses Projekt gezeichnet – bewusst im 16 × 16-Stil des Urban Packs,
 damit sie sich nahtlos einfügen.
+
+Die originalen Hausgrafiken sind ebenfalls in diesem Projekt entstanden und
+stehen unter **CC0 1.0 Universal**. Sie sind keine übernommenen Kenney-Grafiken.
 
 ## Engine
 
