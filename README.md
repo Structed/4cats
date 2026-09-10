@@ -26,8 +26,13 @@ oder mit Tastatur bedienbar.
    Bild ist. Betritt die grün markierte Heimzone, um Katzen abzugeben.
 5. **Pflegen**: Jede Katze hat vier Werte – Hunger, Durst, Sauberkeit, Gesundheit.
    Per Tippen füllst du sie auf. Jede Aktion hat eine kurze Abklingzeit.
-6. **Vermitteln**: Bleiben alle vier Werte über 80, wird die Katze nach kurzer Zeit
-   adoptiert und bringt Münzen.
+6. **Vermitteln**: Solange alle vier Werte **mindestens 80** betragen, sammelt die
+   Katze Genesungsfortschritt. Ohne Tierarzt-Ausbau dauert die Genesung bei
+   durchgehend ausreichender Pflege **30 Sekunden**; der Ausbau beschleunigt sie.
+   Danach wird die Katze **automatisch** vermittelt und bringt Münzen. Fällt ein
+   Wert unter 80, sinkt der Fortschritt wieder, statt nur zu pausieren. Die
+   Pflegekarte zeigt fehlende Werte und den Genesungsfortschritt an; bei
+   ausreichender Pflege auch die verbleibende Zeit bis zur Vermittlung.
 7. **Ausbauen**: Münzen fließen in Tragekorb, Leckerlis, Komfort und Tierarzt.
 
 ## Steuerung

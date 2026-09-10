@@ -12,8 +12,11 @@
 ## am Ende gezaehlt.
 extends Node
 
-const NAVIGATION_WINDOW_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1760, 720)]
+const UI_WINDOW_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1760, 720)]
 const NAVIGATION_ZOOMS: Array[Vector2] = [Vector2(2, 2), Vector2(1.5, 1.5)]
+const CARD_LAYOUT_NODES: PackedStringArray = [
+	"%NameLabel", "%NeedsBox", "%ButtonsBox", "%RecoveryBar", "%RecoveryLabel", "%RecoveryDetails",
+]
 
 var _failures: PackedStringArray = []
 
@@ -285,7 +288,9 @@ func _test_home() -> void:
 	_check(pressed == 8, "Alle vier Pflegeaktionen auf beiden Karten ausloesbar (%d)" % pressed)
 
 	# Abklingzeit abwarten, damit auch der Timer-Pfad einmal laeuft.
-	await _wait(0.6)
+	await _wait(2.6)
+	if list.get_child_count() > 0:
+		await _test_adoption_status(list.get_child(0) as PanelContainer)
 
 	# Laden auf, jedes Upgrade kaufen, wieder zu.
 	_press(home, "%ShopButton")
@@ -325,6 +330,132 @@ func _test_home() -> void:
 
 func _on_cat_adopted(_cat: CatData, _reward: int) -> void:
 	_adoption_seen = true
+
+
+func _test_adoption_status(card: PanelContainer) -> void:
+	print("--- Vermittlungsstatus auf der Pflegekarte ---")
+	var status: Label = _node(card, "%RecoveryLabel")
+	var details: Label = _node(card, "%RecoveryDetails")
+	var health_value: Label = _node(card, "%NeedsBox/HealthValue")
+	var progress: ProgressBar = _node(card, "%RecoveryBar")
+	if status == null or details == null or health_value == null or progress == null:
+		return
+
+	var cat: CatData = card.get("cat")
+	var original_needs: Dictionary = cat.needs()
+	var original_recovery := cat.recovery_timer
+	var original_processing := GameState.is_processing()
+	var window := get_tree().root
+	var original_size := window.size
+	GameState.set_process(false)
+
+	for need_key: String in cat.needs():
+		cat.set(need_key, CatData.NEED_MAX)
+	cat.health = CatData.RECOVERY_THRESHOLD - 0.1
+	cat.recovery_timer = 0.0
+	card.call("refresh")
+	_check(status.text.begins_with("Pflege fehlt") and cat.wellbeing() > CatData.RECOVERY_THRESHOLD,
+		"Hoher Durchschnitt wird bei fehlendem Einzelwert nicht als vermittlungsbereit angezeigt")
+	var name_label: Label = _node(card, "%NameLabel")
+	_check(name_label.text.contains("Wohlbefinden:"), "Der Durchschnitt ist als Wohlbefinden beschriftet")
+	_check(health_value.text == "Gesundheit: %d/%d" % [
+		int(CatData.RECOVERY_THRESHOLD) - 1, int(CatData.NEED_MAX)
+	], "Ein Wert knapp unter der Schwelle wird nicht aufgerundet")
+	_check(details.text.begins_with("Fehlt: Gesundheit."),
+		"Nur die tatsaechlich fehlende Pflege wird benannt")
+	_check(details.text.contains("mindestens %d" % int(CatData.RECOVERY_THRESHOLD)),
+		"Die inklusive Zielschwelle ist sichtbar")
+	_check(not status.text.contains("in ca.") and not details.text.contains("Fortschritt sinkt"),
+		"Ohne Fortschritt gibt es weder Countdown noch eine falsche Rueckschrittsmeldung")
+
+	cat.health = CatData.RECOVERY_THRESHOLD
+	card.call("refresh")
+	_check(status.text.begins_with("Genesung:") and status.text.ends_with("in ca. 30 s"),
+		"Genau auf der Schwelle zeigt die Karte die automatische Vermittlung mit Restzeit")
+	_check(not details.text.contains("Fehlt:"), "Erfuellte Voraussetzungen werden nicht als fehlend angezeigt")
+
+	cat.hunger = CatData.RECOVERY_THRESHOLD - 0.1
+	cat.thirst = CatData.RECOVERY_THRESHOLD - 0.1
+	cat.recovery_timer = 10.0
+	card.call("refresh")
+	_check(status.text.begins_with("Genesung unterbrochen"),
+		"Fehlende Pflege bei Restfortschritt wird als Unterbrechung angezeigt")
+	_check(details.text.begins_with("Fehlt: Hunger, Durst.") and details.text.contains("Fortschritt sinkt"),
+		"Die Unterbrechung benennt alle fehlenden Werte und erklaert den Rueckschritt")
+	_check(not status.text.contains("in ca."), "Waehrend der Unterbrechung wird kein Countdown versprochen")
+	var before := progress.value
+	GameState._tick_needs(1.0)
+	card.call("refresh")
+	_check(progress.value < before, "Der Genesungsbalken zeigt den tatsaechlichen Rueckschritt")
+	var retained := cat.recovery_timer
+
+	var buttons: HBoxContainer = _node(card, "%ButtonsBox")
+	(buttons.get_child(0) as Button).pressed.emit()
+	(buttons.get_child(1) as Button).pressed.emit()
+	_check(cat.all_needs_met() and status.text.begins_with("Genesung:"),
+		"Fuettern und Traenken wechseln die Anzeige sofort zur laufenden Genesung")
+	_check(is_equal_approx(cat.recovery_timer, retained), "Pflege erhaelt den bisherigen Fortschritt")
+	var remaining_before := GameState.recovery_seconds_remaining(cat)
+	var status_before := status.text
+	_check(GameState.purchase_upgrade("vet"), "Tierarzt-Ausbau waehrend der Genesung ist moeglich")
+	await _wait(0.05)
+	_check(GameState.recovery_seconds_remaining(cat) < remaining_before and status.text != status_before,
+		"Ein Tierarzt-Kauf verkuerzt den angezeigten Countdown ohne Neuaufbau der Karte")
+	_check(status.text.ends_with("in ca. %d s" % ceili(GameState.recovery_seconds_remaining(cat))),
+		"Die angezeigte Restzeit entspricht der aktuellen Tierarzt-Stufe")
+	GameState._tick_needs(1.0)
+	card.call("refresh")
+	_check(cat.recovery_timer > retained, "Nach der Unterbrechung steigt der Fortschritt wieder")
+
+	cat.health = CatData.RECOVERY_THRESHOLD - 0.1
+	cat.recovery_timer = 0.5
+	GameState._tick_needs(1.0)
+	card.call("refresh")
+	_check(status.text.begins_with("Pflege fehlt") and not details.text.contains("Fortschritt sinkt"),
+		"Bei aufgebrauchtem Fortschritt wechselt die Karte zur fehlenden Pflege")
+	cat.health = CatData.NEED_MAX
+	cat.recovery_timer = CatData.RECOVERY_SECONDS - 0.001
+	card.call("refresh")
+	_check(status.text.ends_with("in ca. 1 s") and not status.text.contains("100 %"),
+		"Kurz vor Abschluss werden weder null Sekunden noch volle Genesung vorgetaeuscht")
+	_check(progress.value < 100.0, "Auch der Balken rundet unvollstaendige Genesung nicht auf 100 auf")
+
+	for window_size in UI_WINDOW_SIZES:
+		window.size = window_size
+		for need_key: String in cat.needs():
+			cat.set(need_key, CatData.RECOVERY_THRESHOLD - 0.1)
+		cat.recovery_timer = 10.0
+		card.call("refresh")
+		await _wait(0.1)
+		_check_cat_card_layout(card, "mit allen fehlenden Werten bei %s" % window_size)
+		for need_key: String in cat.needs():
+			cat.set(need_key, CatData.NEED_MAX)
+		card.call("refresh")
+		await _wait(0.1)
+		_check_cat_card_layout(card, "mit Countdown bei %s" % window_size)
+
+	window.size = original_size
+	for need_key: String in original_needs:
+		cat.set(need_key, original_needs[need_key])
+	cat.recovery_timer = original_recovery
+	card.call("refresh")
+	GameState.set_process(original_processing)
+	await _wait(0.1)
+
+
+func _check_cat_card_layout(card: Control, context: String) -> void:
+	var body: Control = card.get_node("Row/Body")
+	var bounds := body.get_global_rect().grow(0.1)
+	_check(card.get_global_rect().end.x <= card.get_viewport_rect().end.x,
+		"Die Pflegekarte passt ins Fenster %s" % context)
+	for node_path in CARD_LAYOUT_NODES:
+		var control: Control = _node(card, node_path)
+		if control == null:
+			continue
+		_check(bounds.encloses(control.get_global_rect()), "%s bleibt innerhalb der Karte %s" % [node_path, context])
+		if control is Label:
+			_check(control.get_visible_line_count() == control.get_line_count(),
+				"Alle Textzeilen von %s sind lesbar %s" % [node_path, context])
 
 
 # --- Rettung -----------------------------------------------------------------
@@ -437,7 +568,7 @@ func _test_home_navigation(level: Node) -> void:
 
 	player.set_physics_process(false)
 	camera.position_smoothing_enabled = false
-	for window_size in NAVIGATION_WINDOW_SIZES:
+	for window_size in UI_WINDOW_SIZES:
 		window.size = window_size
 		await _wait(0.1)
 		_check(is_equal_approx(player.get_viewport_rect().size.aspect(), Vector2(window_size).aspect()),

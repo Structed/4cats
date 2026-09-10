@@ -18,7 +18,7 @@ const NEED_MAX := 100.0
 ## Ab diesem Wert gilt ein Beduerfnis als erfuellt.
 const RECOVERY_THRESHOLD := 80.0
 
-## So lange muessen *alle* vier Werte oben bleiben, bis die Katze genesen ist.
+## Benoetigter Genesungsfortschritt in Sekunden ohne Tierarzt-Ausbau.
 const RECOVERY_SECONDS := 30.0
 
 ## Anzahl der verfuegbaren Fellvarianten.
@@ -43,7 +43,7 @@ const NAMES: PackedStringArray = [
 @export_range(0.0, NEED_MAX) var cleanliness: float = 50.0
 @export_range(0.0, NEED_MAX) var health: float = 50.0
 
-## Wie lange alle Beduerfnisse schon ueber der Schwelle liegen.
+## Gesammelter Genesungsfortschritt, der bei fehlender Pflege wieder sinkt.
 @export var recovery_timer: float = 0.0
 
 
@@ -79,7 +79,7 @@ func wellbeing() -> float:
 	return (hunger + thirst + cleanliness + health) * 0.25
 
 
-## Liegen alle vier Werte ueber der Genesungsschwelle?
+## Erreichen alle vier Beduerfnisse die Genesungsschwelle?
 func all_needs_met() -> bool:
 	return hunger >= RECOVERY_THRESHOLD \
 		and thirst >= RECOVERY_THRESHOLD \

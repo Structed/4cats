@@ -34,10 +34,12 @@ const NEED_COLORS := {
 @onready var _buttons_box: HBoxContainer = %ButtonsBox
 @onready var _recovery_bar: ProgressBar = %RecoveryBar
 @onready var _recovery_label: Label = %RecoveryLabel
+@onready var _recovery_details: Label = %RecoveryDetails
 
 var cat: CatData
 
 var _bars: Dictionary = {}
+var _need_labels: Dictionary = {}
 var _buttons: Dictionary = {}
 var _cooldowns: Dictionary = {}
 
@@ -75,14 +77,17 @@ func _build_needs() -> void:
 	# Handys im Querformat flach genug.
 	for need_key: String in NEED_LABELS:
 		var label := Label.new()
+		label.name = "%sValue" % need_key.capitalize()
 		label.text = String(NEED_LABELS[need_key])
 		label.custom_minimum_size = Vector2(64.0, 0.0)
 		label.add_theme_font_size_override("font_size", 10)
 		_needs_box.add_child(label)
+		_need_labels[need_key] = label
 
 		var bar := ProgressBar.new()
 		bar.min_value = 0.0
 		bar.max_value = CatData.NEED_MAX
+		bar.step = 0.0
 		bar.show_percentage = false
 		bar.custom_minimum_size = Vector2(90.0, 9.0)
 		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -132,16 +137,37 @@ func _on_action(action_id: String) -> void:
 func refresh() -> void:
 	if cat == null:
 		return
-	_name_label.text = "%s  ·  %d %%" % [cat.cat_name, int(round(cat.wellbeing()))]
-	var needs := cat.needs()
+	_name_label.text = "%s  ·  Wohlbefinden: %d %%" % [cat.cat_name, int(round(cat.wellbeing()))]
+	var needs: Dictionary = cat.needs()
+	var missing_needs: PackedStringArray = []
 	for need_key: String in _bars:
-		(_bars[need_key] as ProgressBar).value = needs[need_key]
+		var value: float = needs[need_key]
+		(_bars[need_key] as ProgressBar).value = value
+		var label: Label = _need_labels[need_key]
+		label.text = "%s: %d/%d" % [
+			String(NEED_LABELS[need_key]), floori(value), int(CatData.NEED_MAX)
+		]
+		if value < CatData.RECOVERY_THRESHOLD:
+			missing_needs.append(String(NEED_LABELS[need_key]))
 
 	_recovery_bar.value = cat.recovery_progress() * 100.0
+	var progress := floori(cat.recovery_progress() * 100.0)
+	var threshold := int(CatData.RECOVERY_THRESHOLD)
 	if cat.all_needs_met():
-		_recovery_label.text = "Wird bald vermittelt …"
+		_recovery_label.text = "Genesung: %d %% · Automatische Vermittlung in ca. %d s" % [
+			progress, ceili(GameState.recovery_seconds_remaining(cat))
+		]
+		_recovery_details.text = "Alle vier Werte mindestens %d halten." % threshold
+	elif cat.recovery_timer > 0.0:
+		_recovery_label.text = "Genesung unterbrochen · %d %%" % progress
+		_recovery_details.text = "Fehlt: %s. Fortschritt sinkt.\nAlle vier Werte mindestens %d." % [
+			", ".join(missing_needs), threshold
+		]
 	else:
-		_recovery_label.text = "Alle Werte über %d bringen sie durch." % int(CatData.RECOVERY_THRESHOLD)
+		_recovery_label.text = "Pflege fehlt · Genesung: %d %%" % progress
+		_recovery_details.text = "Fehlt: %s.\nAlle vier Werte mindestens %d." % [
+			", ".join(missing_needs), threshold
+		]
 
 
 func _update_buttons() -> void:
