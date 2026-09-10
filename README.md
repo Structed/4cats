@@ -71,7 +71,7 @@ tools/                   Skripte zum Bauen, Prüfen und Erzeugen von Assets
   github-app.yml         Projekteinstellungen für die GitHub-Copilot-App
   actions/setup-godot/   Godot samt Export-Vorlagen in CI installieren
   workflows/ci.yml       Prüfen und Bauen bei jedem Push
-  workflows/android.yml  APK bauen, sobald ein Pull Request gemergt wurde
+  workflows/android.yml  Signiertes APK und Release nach PR-Merge in main
 ```
 
 ### Technische Eckdaten
@@ -204,17 +204,26 @@ mkdir build/android
 pwsh tools/godot.ps1 --headless --path . --export-debug "Android" build/android/4cats.apk
 ```
 
-Für eine **veröffentlichbare** Android-Fassung braucht es einen eigenen
-Release-Keystore. Er gehört **nicht** ins Repository:
+Für eine **veröffentlichbare** Android-Fassung wird der dauerhafte
+Release-Keystore verwendet (siehe „Release-Signatur und Wiederherstellung“
+unten). Er gehört **nicht** ins Repository und darf nicht für jeden Build neu
+erzeugt werden. Mit dem eingerichteten Schlüssel unter Windows:
 
 ```powershell
-keytool -v -genkey -keystore 4cats.keystore -alias fourcats -keyalg RSA -validity 10000
-
-$env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH     = "C:\pfad\zu\4cats.keystore"
+$signing = Join-Path $env:LOCALAPPDATA '4cats\signing'
+$password = Import-Clixml -LiteralPath (Join-Path $signing 'keystore-password.clixml')
+$env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH     = Join-Path $signing '4cats-release.keystore'
 $env:GODOT_ANDROID_KEYSTORE_RELEASE_USER     = "fourcats"
-$env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD = "<passwort>"
+$env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD = [pscredential]::new('fourcats', $password).GetNetworkCredential().Password
 
-pwsh tools/godot.ps1 --headless --path . --export-release "Android" build/android/4cats.apk
+try {
+    New-Item -ItemType Directory -Path build/android -Force | Out-Null
+    pwsh tools/godot.ps1 --headless --path . --export-release "Android" build/android/4cats.apk
+    if ($LASTEXITCODE -ne 0) { throw 'Android-Release-Export fehlgeschlagen.' }
+} finally {
+    Remove-Item Env:\GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD
+    $password.Dispose()
+}
 ```
 
 > **Hinweis zum Android-Emulator:** Der Standard-Emulator mit `swiftshader`
@@ -231,17 +240,75 @@ pwsh tools/godot.ps1 --headless --path . --export-release "Android" build/androi
 | Wann | Workflow | Ergebnis |
 |---|---|---|
 | Jeder Push und jeder Pull Request | `ci.yml` | Alle Prüfungen, dazu die Windows-Fassung als Artefakt `4cats-windows` |
-| Sobald ein Pull Request **gemergt** wird | `android.yml` | APK als Artefakt `4cats-android-pr<Nummer>` |
+| Sobald ein Pull Request nach **`main` gemergt** wird | `android.yml` | Release-signiertes APK als GitHub Release `android-pr-<Nummer>` und Artefakt `4cats-android-pr<Nummer>` |
 
-Das APK liegt im jeweiligen Lauf unter **Actions → Android → Artifacts** und ist
-mit einem in der Aktion erzeugten **Debug-Keystore** signiert: installierbar zum
-Ausprobieren, aber nicht zur Veröffentlichung geeignet. Dafür bleibt es beim
-eigenen Release-Keystore aus dem Abschnitt oben – dessen Passwörter haben in
-einem öffentlichen Build nichts zu suchen.
+Das signierte `4cats.apk` liegt unter
+**[Releases](https://github.com/Structed/4cats/releases)** am jeweiligen normalen
+Release (kein Prerelease), zusätzlich unter **Actions → Android → Artifacts**.
+Gebaut wird genau der Commit, der beim Merge entstanden ist, auch nach einem
+Squash- oder Rebase-Merge und bei gemergten Fork-PRs.
+
+Offene oder aktualisierte PRs, ohne Merge geschlossene PRs, direkte Pushes und
+Merges in andere Zielbranches erzeugen **weder APK noch Release**. Jeder Merge
+nach `main` hat seinen eigenen Release-Tag; ein neuer Merge bricht einen
+vorherigen Build nicht ab. Wiederholungen eines Laufs verwenden denselben Tag
+und überschreiben weder dessen Commit noch ein bereits vollständig
+hochgeladenes Release-APK.
+
+Der Android-Workflow verwendet ausschließlich `--export-release` und prüft die
+Signatur gegen den dauerhaften Schlüssel sowie das ausgeschaltete
+Debuggable-Flag. Nur der nachfolgende Veröffentlichungsjob erhält
+`contents: write`; der Build bleibt lesend. Der privilegierte
+`pull_request_target`-Auslöser ist auf geschlossene, tatsächlich nach `main`
+gemergte PRs beschränkt und checkt niemals einen ungemergten PR-Head aus.
 
 Beide Workflows holen Godot über dieselbe Aktion `.github/actions/setup-godot`.
 Eine neue Godot-Version wird deshalb nur in `GODOT_VERSION` der beiden Workflows
 geändert, nicht in der Installationslogik.
+
+### Release-Signatur und Wiederherstellung
+
+Unter **Settings → Secrets and variables → Actions** sind diese
+Repository-Secrets eingerichtet:
+
+| Secret | Inhalt |
+|---|---|
+| `ANDROID_RELEASE_KEYSTORE_BASE64` | Dauerhafter JKS-Keystore, Base64-kodiert |
+| `ANDROID_RELEASE_KEYSTORE_ALIAS` | Schlüsselalias `fourcats` |
+| `ANDROID_RELEASE_KEYSTORE_PASSWORD` | Gemeinsames Keystore- und Schlüsselpasswort |
+
+Der Workflow stellt den Keystore nur vorübergehend in `runner.temp` mit
+Dateirechten `0600` bereit und entfernt ihn auch nach einem Fehler. Fehlende
+Secrets, ungültige Zugangsdaten oder ein fehlgeschlagener Export brechen den
+Build ab; es gibt **keinen Rückfall auf eine Debug-Signatur**.
+
+Der einmalig erzeugte Schlüssel liegt außerhalb des Repositorys unter
+`%LOCALAPPDATA%\4cats\signing`, mit Zugriff nur für das zugehörige Windows-Konto:
+
+| Datei | Zweck |
+|---|---|
+| `4cats-release.keystore` | Privater Release-Schlüssel; nicht ersetzen oder einchecken |
+| `keystore-password.clixml` | Passwort als mit Windows DPAPI verschlüsselter `SecureString` |
+
+**Sicherung:** Keystore und Passwort müssen dauerhaft und getrennt vom
+Repository sicher aufbewahrt werden. Die Passwortdatei ist an das
+Windows-Konto und dessen Maschine gebunden; sie allein ist keine portable
+Passwortsicherung. Vor einem Rechnerwechsel das Passwort lokal entschlüsseln
+(wie im PowerShell-Beispiel oben) und in einem sicheren Passwortmanager
+sichern, ohne es in Logs, Commits oder Chats auszugeben.
+
+Zur Wiederherstellung der Actions-Secrets denselben Keystore mit
+`[Convert]::ToBase64String([IO.File]::ReadAllBytes(...))` kodieren, das vorhandene
+Passwort lokal aus `keystore-password.clixml` laden und die Werte jeweils über
+die Standardeingabe an `gh secret set <Name> --repo Structed/4cats` übergeben.
+GitHub gibt gespeicherte Secret-Werte nicht wieder zurück. Vorhandene Schlüssel
+oder Secrets deshalb nicht unbesehen neu erzeugen oder überschreiben.
+
+**Wechsel von Debug-APKs:** Die bisherigen Debug-Builds haben eine andere
+Signatur und können nicht direkt mit dem Release-APK aktualisiert werden.
+Vor einer Installation muss die alte Debug-App entfernt werden; dabei gehen
+auch ihre lokalen Spielstände verloren. Künftige Release-APKs verwenden
+denselben dauerhaften Schlüssel.
 
 ### GitHub-Copilot-App
 
