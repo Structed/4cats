@@ -27,13 +27,12 @@ func _ready() -> void:
 
 
 func _apply_look() -> void:
-	var region: Rect2i = UrbanTiles.CAR_REGIONS[randi() % UrbanTiles.CAR_REGIONS.size()]
+	var regions: Array[Rect2i] = UrbanTiles.CAR_REGIONS_DOWN if driving_down else UrbanTiles.CAR_REGIONS_UP
+	var region: Rect2i = regions[randi() % regions.size()]
 	var atlas := AtlasTexture.new()
 	atlas.atlas = load("res://assets/kenney/urban_tilemap.png")
 	atlas.region = Rect2(region)
 	_sprite.texture = atlas
-	# Die Sprites zeigen die Front; nach oben fahrende Autos werden gedreht.
-	_sprite.flip_v = not driving_down
 
 
 func _physics_process(delta: float) -> void:

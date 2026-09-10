@@ -79,12 +79,14 @@ const CHARACTER_ROW_WALK_A := 1
 const CHARACTER_ROW_WALK_B := 2
 
 ## Autos stehen ausserhalb des Kachelrasters, deshalb exakte Pixelrechtecke.
-## Alle sind Front- bzw. Heckansichten -- die Strassen verlaufen daher senkrecht.
-const CAR_REGIONS: Array[Rect2i] = [
-	Rect2i(244, 234, 24, 22),  # orange, Frontansicht
-	Rect2i(244, 266, 24, 22),  # rot, Frontansicht
-	Rect2i(272, 235, 16, 21),  # orange, schmal
-	Rect2i(272, 267, 16, 21),  # rot, schmal
+## Fuer senkrechte Strassen Front und Heck statt der breiten Seitenansichten.
+const CAR_REGIONS_DOWN: Array[Rect2i] = [
+	Rect2i(272, 235, 16, 21),  # orange, Frontansicht
+	Rect2i(272, 267, 16, 21),  # rot, Frontansicht
+]
+const CAR_REGIONS_UP: Array[Rect2i] = [
+	Rect2i(320, 235, 16, 21),  # orange, Heckansicht
+	Rect2i(320, 267, 16, 21),  # rot, Heckansicht
 ]
 
 
