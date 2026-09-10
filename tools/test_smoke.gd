@@ -12,7 +12,7 @@
 ## am Ende gezaehlt.
 extends Node
 
-const NAVIGATION_WINDOW_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1760, 720)]
+const UI_WINDOW_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1760, 720)]
 const NAVIGATION_ZOOMS: Array[Vector2] = [Vector2(2, 2), Vector2(1.5, 1.5)]
 
 var _failures: PackedStringArray = []
@@ -46,6 +46,7 @@ func _check(condition: bool, description: String) -> void:
 func _run() -> void:
 	await _test_main_menu()
 	await _test_home()
+	await _test_adoption_status()
 	await _test_touch_furnishing()
 	await _test_rescue()
 	await _test_scene_transitions()
@@ -293,8 +294,14 @@ func _test_home() -> void:
 	var cat: CatData = GameState.home_cats[0]
 	var state: HomeCatState = GameState.home.cats[cat.id]
 	player.position = state.position + Vector2(0, 10)
+	home.call("_resolve_focus")
+	var cat_panel: PanelContainer = hud.get("_cat_panel")
+	var cat_name: Label = hud.get("_cat_name")
+	_check(cat_panel.visible and cat_name.text.contains(cat.cat_name),
+		"Die fokussierte Hauskatze zeigt ihren Vermittlungsstatus ohne Aufnehmen oder Hover")
 	await _home_action(home)
 	_check(simulation.held_cat_id == cat.id, "Eine Hauskatze laesst sich aufnehmen")
+	_check(cat_panel.visible, "Der Vermittlungsstatus bleibt beim Tragen sichtbar")
 	for kind in ["wash", "vet"]:
 		var station := GameState.home.item_by_id("starter_" + kind)
 		player.position = HomeCatalog.world(station.port())
@@ -302,6 +309,13 @@ func _test_home() -> void:
 		_check(simulation.is_caring(), "Die Station %s beginnt die Pflege" % kind)
 		await _wait(HomeSimulation.CARE_SECONDS + 0.2)
 		_check(not simulation.is_caring(), "Die Station %s beendet die Pflege" % kind)
+		home.call("_process", 0.0)
+		var need := "cleanliness" if kind == "wash" else "health"
+		var labels: Dictionary = hud.get("_cat_need_labels")
+		var value_label: Label = labels[need]
+		_check(value_label.text == "%s: %d" % [
+			String(HomeHUD.NEED_LABELS[need]), floori(float(cat.get(need)))],
+			"Die Zustandsanzeige uebernimmt die abgeschlossene Pflege an der Station %s" % kind)
 	player.position += Vector2(0, 48)
 	await _home_action(home)
 	_check(simulation.held_cat_id.is_empty(), "Die Hauskatze laesst sich absetzen")
@@ -361,7 +375,7 @@ func _test_home() -> void:
 	_check(not Input.is_action_pressed("interact") and not Input.is_action_pressed("home_rotate"),
 		"Die Touch-Aktionen bleiben nicht gedrueckt")
 
-	# Adoption ausloesen -- dabei wird die Karte mitten im Betrieb entfernt.
+	# Adoption ausloesen -- dabei wird die Hauskatze mitten im Betrieb entfernt.
 	_adoption_seen = false
 	GameState.cat_adopted.connect(_on_cat_adopted)
 	for recovered_cat in GameState.home_cats.duplicate():
@@ -374,6 +388,7 @@ func _test_home() -> void:
 	await _wait(0.8)
 	GameState.cat_adopted.disconnect(_on_cat_adopted)
 	_check(_adoption_seen, "Eine Vermittlung mitten im Betrieb bricht nichts")
+	_check(not cat_panel.visible, "Nach der Vermittlung bleibt keine veraltete Zustandsanzeige stehen")
 
 	home.queue_free()
 	await _wait(0.2)
@@ -381,6 +396,159 @@ func _test_home() -> void:
 
 func _on_cat_adopted(_cat: CatData, _reward: int) -> void:
 	_adoption_seen = true
+
+
+func _test_adoption_status() -> void:
+	print("--- Vermittlungsstatus im Katzenhaus ---")
+	GameState.reset()
+	GameState.add_coins(500)
+	var cat := CatData.create_random()
+	GameState.pick_up_cat(cat)
+	GameState.deliver_carried_cats()
+	var hud := HomeHUD.new()
+	get_tree().root.add_child(hud)
+	var status: Label = hud.get("_cat_recovery")
+	var details: Label = hud.get("_cat_details")
+	var need_labels: Dictionary = hud.get("_cat_need_labels")
+	var health_value: Label = need_labels["health"]
+	var window := get_tree().root
+	var original_size := window.size
+
+	for need_key: String in cat.needs():
+		cat.set(need_key, CatData.NEED_MAX)
+	cat.health = CatData.RECOVERY_THRESHOLD - 0.1
+	cat.recovery_timer = 0.0
+	hud.set_cat_status(cat)
+	_check(status.text.begins_with("Pflege fehlt") and cat.wellbeing() > CatData.RECOVERY_THRESHOLD,
+		"Hoher Durchschnitt wird bei fehlendem Einzelwert nicht als vermittlungsbereit angezeigt")
+	var name_label: Label = hud.get("_cat_name")
+	_check(name_label.text.contains("Wohlbefinden:"), "Der Durchschnitt ist als Wohlbefinden beschriftet")
+	_check(need_labels.size() == cat.needs().size(), "Alle fuenf Pflegewerte werden als Zahlen angezeigt")
+	_check(health_value.text == "Gesundheit: %d" % (int(CatData.RECOVERY_THRESHOLD) - 1),
+		"Ein Wert knapp unter der Schwelle wird nicht aufgerundet")
+	_check(details.text.begins_with("Fehlt: Gesundheit."),
+		"Nur die tatsaechlich fehlende Pflege wird benannt")
+	_check(details.text.contains("Alle 5 Werte mindestens %d" % int(CatData.RECOVERY_THRESHOLD)),
+		"Die inklusive Zielschwelle ist sichtbar")
+	_check(not status.text.contains("in ca.") and not details.text.contains("Fortschritt sinkt"),
+		"Ohne Fortschritt gibt es weder Countdown noch eine falsche Rueckschrittsmeldung")
+
+	cat.health = CatData.RECOVERY_THRESHOLD
+	hud.set_cat_status(cat)
+	_check(status.text.begins_with("Genesung:") and status.text.ends_with("in ca. 30 s"),
+		"Genau auf der Schwelle zeigt die Anzeige die automatische Vermittlung mit Restzeit")
+	_check(not details.text.contains("Fehlt:"), "Erfuellte Voraussetzungen werden nicht als fehlend angezeigt")
+	cat.health = CatData.NEED_MAX
+	cat.enrichment = CatData.RECOVERY_THRESHOLD - 0.1
+	hud.set_cat_status(cat)
+	var enrichment_label: String = HomeHUD.NEED_LABELS["enrichment"]
+	_check(details.text.begins_with("Fehlt: %s." % enrichment_label),
+		"Das neue Beschaeftigungsbeduerfnis verhindert die Vermittlung trotz vier guter Werte")
+	cat.enrichment = CatData.RECOVERY_THRESHOLD
+	hud.set_cat_status(cat)
+	_check(status.text.begins_with("Genesung:"), "Auch Beschaeftigung genau auf der Schwelle reicht aus")
+	cat.enrichment = CatData.NEED_MAX
+
+	cat.hunger = CatData.RECOVERY_THRESHOLD - 0.1
+	cat.thirst = CatData.RECOVERY_THRESHOLD - 0.1
+	cat.recovery_timer = 10.0
+	hud.set_cat_status(cat)
+	_check(status.text.begins_with("Genesung unterbrochen"),
+		"Fehlende Pflege bei Restfortschritt wird als Unterbrechung angezeigt")
+	_check(details.text.begins_with("Fehlt: Hunger, Durst.") and details.text.contains("Fortschritt sinkt"),
+		"Die Unterbrechung benennt alle fehlenden Werte und erklaert den Rueckschritt")
+	_check(not status.text.contains("in ca."), "Waehrend der Unterbrechung wird kein Countdown versprochen")
+	var before := cat.recovery_timer
+	GameState._tick_needs(1.0)
+	hud.set_cat_status(cat)
+	_check(cat.recovery_timer < before and status.text.contains("%d %%" % floori(cat.recovery_progress() * 100.0)),
+		"Die Genesungsanzeige zeigt den tatsaechlichen Rueckschritt ohne alten Pflegebalken")
+	var retained := cat.recovery_timer
+
+	cat.hunger = CatData.NEED_MAX
+	cat.thirst = CatData.NEED_MAX
+	hud.set_cat_status(cat)
+	_check(cat.all_needs_met() and status.text.begins_with("Genesung:"),
+		"Ausreichende Versorgung wechselt die Anzeige zur laufenden Genesung")
+	_check(is_equal_approx(cat.recovery_timer, retained), "Pflege erhaelt den bisherigen Fortschritt")
+	var remaining_before := GameState.recovery_seconds_remaining(cat)
+	var status_before := status.text
+	_check(GameState.purchase_upgrade("vet"), "Tierarzt-Ausbau waehrend der Genesung ist moeglich")
+	hud.set_cat_status(cat)
+	_check(GameState.recovery_seconds_remaining(cat) < remaining_before and status.text != status_before,
+		"Ein Tierarzt-Kauf verkuerzt den Countdown ohne Neuaufbau der Anzeige")
+	_check(status.text.ends_with("in ca. %d s" % ceili(GameState.recovery_seconds_remaining(cat))),
+		"Die angezeigte Restzeit entspricht der aktuellen Tierarzt-Stufe")
+	GameState._tick_needs(1.0)
+	hud.set_cat_status(cat)
+	_check(cat.recovery_timer > retained, "Nach der Unterbrechung steigt der Fortschritt wieder")
+
+	cat.health = CatData.RECOVERY_THRESHOLD - 0.1
+	cat.recovery_timer = 0.5
+	GameState._tick_needs(1.0)
+	hud.set_cat_status(cat)
+	_check(status.text.begins_with("Pflege fehlt") and not details.text.contains("Fortschritt sinkt"),
+		"Bei aufgebrauchtem Fortschritt wechselt die Anzeige zur fehlenden Pflege")
+	cat.health = CatData.NEED_MAX
+	cat.recovery_timer = CatData.RECOVERY_SECONDS - 0.001
+	hud.set_cat_status(cat)
+	_check(status.text.ends_with("in ca. 1 s") and not status.text.contains("100 %"),
+		"Kurz vor Abschluss werden weder null Sekunden noch volle Genesung vorgetaeuscht")
+	var simulation := GameState.home_simulation
+	_check(simulation.pick_up(cat.id), "Die fast genesene Katze laesst sich noch tragen")
+	hud.set_cat_status(cat)
+	_check(not status.text.contains("Automatische Vermittlung in") and details.text.contains("absetzen"),
+		"Waehrend des Tragens wird die zusaetzliche Voraussetzung zum Vermitteln erklaert")
+	GameState._tick_needs(0.01)
+	hud.set_cat_status(cat)
+	_check(cat.state == CatData.State.AT_HOME and status.text == "Genesung abgeschlossen",
+		"Abgeschlossene Genesung wird beim Tragen nicht als erfolgte Vermittlung dargestellt")
+	_check(details.text.contains("absetzen"), "Eine genesene getragene Katze muss sichtbar erst abgesetzt werden")
+	cat.enrichment = CatData.RECOVERY_THRESHOLD - 0.1
+	hud.set_cat_status(cat)
+	_check(status.text.begins_with("Genesung unterbrochen"),
+		"Fehlende Pflege hat auch bei vollem Fortschritt Vorrang vor der Abschlussmeldung")
+	_check(simulation.drop(simulation.layout.free_position()), "Die Katze kann wieder abgesetzt werden")
+
+	for window_size in UI_WINDOW_SIZES:
+		window.size = window_size
+		for need_key: String in cat.needs():
+			cat.set(need_key, CatData.RECOVERY_THRESHOLD - 0.1)
+		cat.recovery_timer = 10.0
+		hud.set_cat_status(cat)
+		await _wait(0.1)
+		_check_cat_status_layout(hud, "mit allen fehlenden Werten bei %s" % window_size)
+		for need_key: String in cat.needs():
+			cat.set(need_key, CatData.NEED_MAX)
+		hud.set_cat_status(cat)
+		await _wait(0.1)
+		_check_cat_status_layout(hud, "mit Countdown bei %s" % window_size)
+
+	window.size = original_size
+	hud.set_cat_status(null)
+	var panel: PanelContainer = hud.get("_cat_panel")
+	_check(not panel.visible, "Ohne beobachtete Katze ist die Zustandsanzeige ausgeblendet")
+	hud.queue_free()
+	await _wait(0.1)
+
+
+func _check_cat_status_layout(hud: HomeHUD, context: String) -> void:
+	var panel: PanelContainer = hud.get("_cat_panel")
+	var bounds := panel.get_global_rect().grow(0.1)
+	_check(hud.get_viewport_rect().encloses(panel.get_global_rect()),
+		"Die Zustandsanzeige passt ins Fenster %s" % context)
+	_check(panel.get_global_rect().position.y >= 62 \
+			and panel.get_global_rect().end.y <= hud.get_viewport_rect().end.y - 166,
+		"Die Zustandsanzeige laesst Kopfzeile und Touch-Knoepfe frei %s" % context)
+	_check(panel.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+		"Die reine Zustandsanzeige faengt keine Eingaben ab")
+	var labels: Array[Label] = [hud.get("_cat_name"), hud.get("_cat_recovery"), hud.get("_cat_details")]
+	var need_labels: Dictionary = hud.get("_cat_need_labels")
+	for label: Label in need_labels.values():
+		labels.append(label)
+	for label in labels:
+		_check(bounds.encloses(label.get_global_rect()) and label.get_visible_line_count() == label.get_line_count(),
+			"Alle Textzeilen bleiben innerhalb der Zustandsanzeige %s" % context)
 
 
 func _home_action(home: Node, button_name: String = "ActionButton") -> void:
@@ -463,8 +631,6 @@ func _screen_touch(point: Vector2, index: int, pressed: bool) -> void:
 	event.index = index
 	event.pressed = pressed
 	get_viewport().push_input(event, true)
-
-
 # --- Rettung -----------------------------------------------------------------
 
 func _test_rescue() -> void:
@@ -575,7 +741,7 @@ func _test_home_navigation(level: Node) -> void:
 
 	player.set_physics_process(false)
 	camera.position_smoothing_enabled = false
-	for window_size in NAVIGATION_WINDOW_SIZES:
+	for window_size in UI_WINDOW_SIZES:
 		window.size = window_size
 		await _wait(0.1)
 		_check(is_equal_approx(player.get_viewport_rect().size.aspect(), Vector2(window_size).aspect()),

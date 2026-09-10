@@ -154,6 +154,15 @@ func recovery_multiplier() -> float:
 	return pow(0.8, float(upgrade_level("vet")))
 
 
+func recovery_rate() -> float:
+	return 1.0 / maxf(recovery_multiplier(), 0.01)
+
+
+## Verbleibende Echtzeit, solange alle Beduerfnisse erfuellt bleiben.
+func recovery_seconds_remaining(cat: CatData) -> float:
+	return maxf(CatData.RECOVERY_SECONDS - cat.recovery_timer, 0.0) / recovery_rate()
+
+
 ## Scheu-Multiplikator -- jede Leckerli-Stufe macht Katzen 20 % zutraulicher.
 func shyness_multiplier() -> float:
 	return pow(0.8, float(upgrade_level("treats")))
@@ -175,7 +184,7 @@ func _tick_needs(delta: float) -> void:
 			cat.health = maxf(cat.health - HEALTH_DECAY_WHEN_STARVING * decay, 0.0)
 
 	home_simulation.step(delta)
-	var recovery_speed := 1.0 / maxf(recovery_multiplier(), 0.01)
+	var recovery_speed := recovery_rate()
 	var adopted: Array[CatData] = []
 	for cat in home_cats:
 		if cat.all_needs_met():

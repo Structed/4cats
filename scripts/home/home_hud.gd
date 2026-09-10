@@ -1,6 +1,11 @@
 class_name HomeHUD
 extends Control
 
+const NEED_LABELS := {
+	"hunger": "Hunger", "thirst": "Durst", "cleanliness": "Sauberkeit",
+	"health": "Gesundheit", "enrichment": "Beschäftigung",
+}
+
 signal furnish_requested()
 signal shop_requested()
 signal pause_requested()
@@ -23,6 +28,11 @@ var _content: VBoxContainer
 var _title: Label
 var _furnish: Button
 var _toast_time: float = 0.0
+var _cat_panel: PanelContainer
+var _cat_name: Label
+var _cat_recovery: Label
+var _cat_details: Label
+var _cat_need_labels: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -85,6 +95,7 @@ func _ready() -> void:
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_hint_panel.add_child(_hint)
+	_build_cat_status()
 	_dim = ColorRect.new()
 	add_child(_dim)
 	_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -141,6 +152,80 @@ func _button(text: String, node_name: String, parent: Node) -> Button:
 	button.unique_name_in_owner = true
 	return button
 
+func _build_cat_status() -> void:
+	_cat_panel = PanelContainer.new()
+	_cat_panel.name = "CatStatus"
+	_cat_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_cat_panel)
+	_cat_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_cat_panel.offset_left = -284
+	_cat_panel.offset_right = -8
+	_cat_panel.offset_top = 70
+	_cat_panel.offset_bottom = 70
+	_cat_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_cat_panel.grow_vertical = Control.GROW_DIRECTION_END
+	var style := get_theme_stylebox("panel", "PanelContainer").duplicate() as StyleBox
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	_cat_panel.add_theme_stylebox_override("panel", style)
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", 2)
+	_cat_panel.add_child(box)
+	_cat_name = _label("", 11)
+	_cat_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_cat_name)
+	var needs := GridContainer.new()
+	needs.columns = 3
+	needs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	needs.add_theme_constant_override("h_separation", 6)
+	needs.add_theme_constant_override("v_separation", 2)
+	box.add_child(needs)
+	for need_key: String in NEED_LABELS:
+		var label := _label("", 10)
+		needs.add_child(label)
+		_cat_need_labels[need_key] = label
+	_cat_recovery = _label("", 10)
+	_cat_recovery.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_cat_recovery)
+	_cat_details = _label("", 9)
+	_cat_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_cat_details)
+	_cat_panel.hide()
+
+func set_cat_status(cat: CatData) -> void:
+	_cat_panel.visible = cat != null
+	if cat == null:
+		return
+	_cat_name.text = "%s · Wohlbefinden: %d %%" % [cat.cat_name, roundi(cat.wellbeing())]
+	var needs: Dictionary = cat.needs()
+	var missing: PackedStringArray = []
+	for need_key: String in NEED_LABELS:
+		var value: float = needs[need_key]
+		var label: Label = _cat_need_labels[need_key]
+		label.text = "%s: %d" % [String(NEED_LABELS[need_key]), floori(value)]
+		if value < CatData.RECOVERY_THRESHOLD:
+			missing.append(String(NEED_LABELS[need_key]))
+	var progress := floori(cat.recovery_progress() * 100.0)
+	var rule := "Alle %d Werte mindestens %d." % [needs.size(), int(CatData.RECOVERY_THRESHOLD)]
+	if not cat.all_needs_met():
+		_cat_recovery.text = "Genesung unterbrochen · %d %%" % progress \
+			if cat.recovery_timer > 0 else "Pflege fehlt · Genesung: %d %%" % progress
+		_cat_details.text = "Fehlt: %s.\n%s%s" % [
+			", ".join(missing), "Fortschritt sinkt. " if cat.recovery_timer > 0 else "", rule]
+	elif GameState.home_simulation.held_cat_id == cat.id:
+		_cat_recovery.text = "Genesung abgeschlossen" if cat.recovery_timer >= CatData.RECOVERY_SECONDS \
+			else "Genesung: %d %% · noch ca. %d s" % [
+				progress, ceili(GameState.recovery_seconds_remaining(cat))]
+		_cat_details.text = "Zur automatischen Vermittlung absetzen.\n" + rule
+	else:
+		_cat_recovery.text = "Genesung: %d %% · Automatische Vermittlung in ca. %d s" % [
+			progress, ceili(GameState.recovery_seconds_remaining(cat))]
+		_cat_details.text = "Alle %d Werte mindestens %d halten." % [
+			needs.size(), int(CatData.RECOVERY_THRESHOLD)]
+
 func refresh() -> void:
 	_coins.text = "%d Münzen" % GameState.coins
 	_info.text = "%d Katzen zu Hause · %d vermittelt" % [
@@ -159,11 +244,13 @@ func show_toast(text: String) -> void:
 func set_building(building: bool) -> void:
 	_furnish.text = "Abbrechen" if building else "Einrichten"
 	if building:
+		_cat_panel.hide()
 		_toast_time = 0.0
 		_toast_panel.hide()
 
 func open_modal(kind: String) -> void:
 	modal_kind = kind
+	_cat_panel.hide()
 	_dim.show()
 	_panel.show()
 	_populate()

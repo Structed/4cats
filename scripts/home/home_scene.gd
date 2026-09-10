@@ -155,6 +155,7 @@ func _process(delta: float) -> void:
 	player.set_physics_process(not simulation.is_caring())
 	if simulation.is_caring():
 		player.velocity = Vector2.ZERO
+		hud.set_cat_status(simulation.cat_by_id(simulation.held_cat_id))
 		hud.set_hint("Sanft versorgen …\nAktion / Esc: abbrechen")
 		_touch.call("set_action_label", "Abbrechen")
 	elif _preview == null:
@@ -255,12 +256,18 @@ func _resolve_focus() -> void:
 		(_cat_actors[_focus_id] as HomeCatActor).selected = true
 	elif _focus_kind == "item":
 		(_item_actors[_focus_id] as HomeItemActor).selected = true
+	var observed: CatData
+	if holding:
+		observed = simulation.cat_by_id(simulation.held_cat_id)
+	elif _focus_kind == "cat":
+		observed = simulation.cat_by_id(_focus_id)
+	hud.set_cat_status(observed)
 	hud.set_hint(("E / Aktion: " if not _focus_kind.is_empty() else "") + hint)
 	_touch.call("set_action_label", hint.get_slice("\n", 0) if not _focus_kind.is_empty() else "Interaktion")
 
 func _cat_hint(cat: CatData) -> String:
 	var lowest := CatData.RECOVERY_THRESHOLD
-	var result := "Fühlt sich wohl und findet bald ein Zuhause."
+	var result := "Fühlt sich wohl."
 	for need: String in NEED_TEXT:
 		var value := float(cat.get(need))
 		if value < lowest:

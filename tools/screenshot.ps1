@@ -31,7 +31,7 @@ param(
 
     [switch]$Touch,
 
-    [ValidateSet('play', 'furnish', 'placement')]
+    [ValidateSet('play', 'furnish', 'placement', 'cat')]
     [string]$HomeView = 'play'
 )
 

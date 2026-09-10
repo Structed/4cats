@@ -35,6 +35,7 @@ func run_all() -> void:
 	_test_home_indicator()
 	_test_car_directions()
 	_test_carrying()
+	_test_recovery_timing()
 	_test_care_and_adoption()
 	_test_upgrades()
 	_test_save_roundtrip()
@@ -256,6 +257,24 @@ func _test_cat_data() -> void:
 	_check(cat.all_needs_met(), "Voll versorgte Katze gilt als genesen")
 	_check(is_equal_approx(cat.wellbeing(), 100.0), "Gesamtwert stimmt")
 
+	for need_key: String in cat.needs():
+		cat.set(need_key, CatData.RECOVERY_THRESHOLD - 0.1)
+		_check(not cat.all_needs_met(), "%s knapp unter der Schwelle verhindert Genesung" % need_key)
+		_check(cat.wellbeing() > CatData.RECOVERY_THRESHOLD,
+			"Ein hoher Durchschnitt ersetzt keinen ausreichenden Einzelwert")
+		cat.set(need_key, CatData.RECOVERY_THRESHOLD)
+		_check(cat.all_needs_met(), "%s genau auf der Schwelle reicht aus" % need_key)
+		cat.set(need_key, CatData.RECOVERY_THRESHOLD + 0.1)
+		_check(cat.all_needs_met(), "%s ueber der Schwelle reicht aus" % need_key)
+		cat.set(need_key, CatData.NEED_MAX)
+
+	cat.hunger = CatData.RECOVERY_THRESHOLD - 0.1
+	cat.thirst = CatData.RECOVERY_THRESHOLD - 0.1
+	_check(not cat.all_needs_met(), "Mehrere fehlende Beduerfnisse verhindern Genesung")
+	for need_key: String in cat.needs():
+		cat.set(need_key, CatData.RECOVERY_THRESHOLD)
+	_check(cat.all_needs_met(), "Alle fuenf Werte genau auf der Schwelle reichen aus")
+
 
 func _test_carrying() -> void:
 	print("--- Tragen ---")
@@ -278,6 +297,63 @@ func _test_carrying() -> void:
 	_check(delivered == capacity - 1, "Alle uebrigen Katzen kommen zu Hause an")
 	_check(GameState.carried_cats.is_empty(), "Der Korb ist danach leer")
 	_check(GameState.home_cats.size() == capacity - 1, "Die Katzen liegen jetzt zu Hause")
+
+
+func _test_recovery_timing() -> void:
+	print("--- Genesungsdauer und Rueckschritte ---")
+	for level in GameState.upgrade_max_level("vet") + 1:
+		GameState.reset()
+		GameState.add_coins(10000)
+		for i in level:
+			GameState.purchase_upgrade("vet")
+
+		var cat := CatData.create_random()
+		for need_key: String in cat.needs():
+			cat.set(need_key, CatData.NEED_MAX)
+		GameState.pick_up_cat(cat)
+		GameState.deliver_carried_cats()
+		var coins_before := GameState.coins
+		var duration := CatData.RECOVERY_SECONDS * pow(0.8, float(level))
+		_check(is_equal_approx(GameState.recovery_seconds_remaining(cat), duration),
+			"Restzeit entspricht der Genesungsdauer auf Tierarzt-Stufe %d" % level)
+
+		GameState._tick_needs(2.0)
+		_check(is_equal_approx(GameState.recovery_seconds_remaining(cat), duration - 2.0),
+			"Zwei echte Sekunden verringern die Restzeit um zwei Sekunden auf Stufe %d" % level)
+		var remaining := GameState.recovery_seconds_remaining(cat)
+		GameState._tick_needs(remaining - 0.01)
+		_check(cat.state == CatData.State.AT_HOME,
+			"Die Katze bleibt bis zum Ende der Restzeit zu Hause auf Stufe %d" % level)
+		_check(is_equal_approx(GameState.recovery_seconds_remaining(cat), 0.01),
+			"Auch kurz vor Abschluss bleibt die Restzeit positiv auf Stufe %d" % level)
+
+		GameState._tick_needs(0.02)
+		_check(cat.state == CatData.State.ADOPTED and GameState.home_cats.is_empty(),
+			"Vermittlung erfolgt automatisch nach der angezeigten Dauer auf Stufe %d" % level)
+		_check(GameState.coins == coins_before + GameState.ADOPTION_REWARD,
+			"Die unveraenderte Vermittlungsbelohnung wird ausgezahlt auf Stufe %d" % level)
+		_check(is_zero_approx(GameState.recovery_seconds_remaining(cat)),
+			"Ueberschrittener Genesungsfortschritt erzeugt keine negative Restzeit")
+
+	GameState.reset()
+	var cat := CatData.create_random()
+	for need_key: String in cat.needs():
+		cat.set(need_key, CatData.NEED_MAX)
+	GameState.pick_up_cat(cat)
+	GameState.deliver_carried_cats()
+	GameState._tick_needs(5.0)
+	cat.health = CatData.RECOVERY_THRESHOLD - 0.1
+	GameState._tick_needs(1.0)
+	_check(is_equal_approx(cat.recovery_timer, 3.0),
+		"Fehlende Pflege baut pro Sekunde zwei Fortschrittssekunden ab")
+	cat.health = CatData.NEED_MAX
+	GameState._tick_needs(1.0)
+	_check(is_equal_approx(cat.recovery_timer, 4.0),
+		"Nach ausreichender Pflege geht es mit dem erhaltenen Fortschritt weiter")
+	cat.health = CatData.RECOVERY_THRESHOLD - 0.1
+	GameState._tick_needs(10.0)
+	_check(is_zero_approx(cat.recovery_timer), "Rueckschritte sind bei null begrenzt")
+	_check(cat.state == CatData.State.AT_HOME, "Ohne ausreichende Pflege erfolgt keine Vermittlung")
 
 
 func _test_care_and_adoption() -> void:

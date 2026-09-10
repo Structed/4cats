@@ -30,9 +30,15 @@ oder mit Tastatur bedienbar.
    Zum Waschen oder Behandeln nimmst du eine Katze auf und trägst sie zur
    passenden Station. Symbole und Animationen zeigen, was sie braucht –
    keine Pflegekarten oder Fortschrittsbalken.
-6. **Vermitteln**: Bleiben Hunger, Durst, Sauberkeit, Gesundheit und
-   **Beschäftigung** mindestens bei 80, wird die Katze nach kurzer Zeit
-   adoptiert und bringt Münzen.
+6. **Vermitteln**: Solange Hunger, Durst, Sauberkeit, Gesundheit und
+   **Beschäftigung mindestens 80** betragen, sammelt die Katze Genesungsfortschritt.
+   Ohne Tierarzt-Ausbau dauert die Genesung bei durchgehend ausreichender Pflege
+   **30 Sekunden**; der Ausbau beschleunigt sie. Danach wird die Katze
+   **automatisch** vermittelt und bringt Münzen. Getragene Katzen musst du dafür
+   erst absetzen. Fällt ein Wert unter 80, sinkt der Fortschritt wieder, statt nur
+   zu pausieren. Für die gerade fokussierte oder getragene Katze zeigt eine
+   Zustandsanzeige alle fünf Werte, fehlende Voraussetzungen, den
+   Genesungsfortschritt und die verbleibende Zeit an.
 7. **Einrichten und ausbauen**: Näpfe, Waschplatz, Behandlungsstation, Spielzeug
    und Katzenklo sind frei auf einem Raster platzierbar. Eine Grundausstattung
    ist kostenlos; zusätzliche Einrichtung und die bisherigen Upgrades
@@ -196,6 +202,9 @@ pwsh tools/screenshot.ps1 -Scene home -OutputPath shot.png -Demo
 # Touch-Platzierung oder Einrichtungskatalog ansehen
 pwsh tools/screenshot.ps1 -Scene home -OutputPath placement.png -Demo -Touch -HomeView placement
 pwsh tools/screenshot.ps1 -Scene home -OutputPath catalog.png -Demo -HomeView furnish
+
+# Vermittlungsstatus einer getragenen Katze mit Touch-Bedienung ansehen
+pwsh tools\screenshot.ps1 -Scene home -OutputPath cat.png -Demo -Touch -HomeView cat
 ```
 
 Die Prüfungen geben bei Fehlern Exit-Code 1 zurück und laufen so auch in CI.
