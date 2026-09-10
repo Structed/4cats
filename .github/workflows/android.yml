@@ -156,9 +156,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw 'Die APK-Signatur ist ungültig.'
           }
+          # Ab Build-Tools 37 meldet apksigner "V3.0 Signer:" statt "Signer #1".
           $digests = @($verification |
-            Select-String -Pattern '^Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-fA-F]{64})$' |
-            ForEach-Object { $_.Matches[0].Groups[1].Value.ToLowerInvariant() })
+            Select-String -Pattern '^(?:Signer #[0-9]+|V[0-9]+\.[0-9]+ Signer:) certificate SHA-256 digest: ([0-9a-fA-F]{64})$' |
+            ForEach-Object { $_.Matches[0].Groups[1].Value.ToLowerInvariant() } |
+            Sort-Object -Unique)
+          if ($digests.Count -eq 0) {
+            throw 'Die Signaturzertifikate des APK konnten nicht gelesen werden.'
+          }
           if ($digests.Count -ne 1 -or $digests[0] -cne $expectedDigest) {
             throw 'Das APK wurde nicht mit dem erwarteten Release-Schlüssel signiert.'
           }
