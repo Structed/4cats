@@ -17,6 +17,14 @@ jobs:
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Versionierung testen
+        run: pwsh tools/test_versioning.ps1
+
+      - name: Build-Version vorbereiten
+        run: pwsh tools/set_build_version.ps1
 
       - name: Godot einrichten
         uses: ./.github/actions/setup-godot

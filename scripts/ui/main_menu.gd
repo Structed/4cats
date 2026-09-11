@@ -7,6 +7,7 @@ const TOUCH_SETTING := "force_touch_controls"
 @onready var _new_game_button: Button = %NewGameButton
 @onready var _options_button: Button = %OptionsButton
 @onready var _quit_button: Button = %QuitButton
+@onready var _version_label: Label = %VersionLabel
 
 @onready var _options_panel: PanelContainer = %OptionsPanel
 @onready var _options_dim: ColorRect = %OptionsDim
@@ -24,6 +25,8 @@ const TOUCH_SETTING := "force_touch_controls"
 
 func _ready() -> void:
 	GameState.simulation_active = false
+	var version: String = ProjectSettings.get_setting("application/config/version")
+	_version_label.text = "Version %s" % version
 	_set_options_visible(false)
 	_set_confirm_visible(false)
 	_continue_button.visible = SaveManager.has_save()

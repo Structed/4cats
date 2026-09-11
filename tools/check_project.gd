@@ -65,6 +65,9 @@ func _initialize() -> void:
 	if method != "gl_compatibility":
 		failures.append("Renderer sollte gl_compatibility sein, ist aber '%s'." % method)
 
+	print("--- App-Version ---")
+	failures.append_array(_check_versions())
+
 	print("")
 	if failures.is_empty():
 		print("Alles in Ordnung.")
@@ -74,6 +77,39 @@ func _initialize() -> void:
 			printerr("FEHLER: %s" % failure)
 		printerr("%d Problem(e) gefunden." % failures.size())
 		quit(1)
+
+
+func _check_versions() -> PackedStringArray:
+	var problems: PackedStringArray = []
+	var version := String(ProjectSettings.get_setting("application/config/version", ""))
+	var pattern := RegEx.create_from_string("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")
+	if pattern.search(version) == null:
+		problems.append("Projektversion muss MAJOR.MINOR.PATCH entsprechen.")
+
+	var presets := ConfigFile.new()
+	var error := presets.load("res://export_presets.cfg")
+	if error != OK:
+		problems.append("Export-Presets konnten nicht gelesen werden: %s" % error_string(error))
+		return problems
+	var android_sections: PackedStringArray = []
+	for section in presets.get_sections():
+		if String(presets.get_value(section, "platform", "")) == "Android":
+			android_sections.append(section)
+	if android_sections.size() != 1:
+		problems.append("Es muss genau ein Android-Export-Preset vorhanden sein.")
+		return problems
+
+	var options := "%s.options" % android_sections[0]
+	var android_version := String(presets.get_value(options, "version/name", ""))
+	var code: Variant = presets.get_value(options, "version/code", null)
+	print("  Version: %s, Android: %s (Code %s)" % [version, android_version, str(code)])
+	if android_version != version:
+		problems.append("Android-version/name und Projektversion stimmen nicht ueberein.")
+	if not (code is int) or code < 1 or code > 2100000000:
+		problems.append("Android-version/code muss zwischen 1 und 2100000000 liegen.")
+	if String(presets.get_value(options, "package/unique_name", "")) != "de.structed.fourcats":
+		problems.append("Die Android-Paketkennung muss de.structed.fourcats bleiben.")
+	return problems
 
 
 ## Laedt jedes GDScript im Projekt und meldet, was sich nicht uebersetzen laesst.
