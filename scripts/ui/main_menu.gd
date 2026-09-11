@@ -1,8 +1,9 @@
-## Hauptmenue mit Optionen.
+## Hauptmenue mit Optionen und Credits.
 extends Control
 
 const TOUCH_SETTING := "force_touch_controls"
 
+@onready var _menu_actions: VBoxContainer = %Center
 @onready var _continue_button: Button = %ContinueButton
 @onready var _new_game_button: Button = %NewGameButton
 @onready var _options_button: Button = %OptionsButton
@@ -72,19 +73,32 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ## Blendet Abdunklung und Credits-Fenster gemeinsam ein oder aus.
 func _set_credits_visible(shown: bool) -> void:
-	_credits_panel.visible = shown
-	_credits_dim.visible = shown
+	_set_modal_visible(_credits_panel, _credits_dim, shown,
+		_credits_close if shown else _credits_button)
 
 
 ## Blendet Abdunklung und Fenster gemeinsam ein oder aus.
 func _set_options_visible(shown: bool) -> void:
-	_options_panel.visible = shown
-	_options_dim.visible = shown
+	_set_modal_visible(_options_panel, _options_dim, shown,
+		_master_slider if shown else _options_button)
 
 
 func _set_confirm_visible(shown: bool) -> void:
-	_confirm_panel.visible = shown
-	_confirm_dim.visible = shown
+	_set_modal_visible(_confirm_panel, _confirm_dim, shown,
+		_confirm_no if shown else _new_game_button)
+
+
+## Die Abdunklung allein blockiert keine Tastaturbedienung im Hintergrund.
+func _set_modal_visible(panel: PanelContainer, dim: ColorRect, shown: bool,
+		focus_target: Control) -> void:
+	var was_visible := panel.visible
+	panel.visible = shown
+	dim.visible = shown
+	var modal_visible := _credits_panel.visible or _options_panel.visible or _confirm_panel.visible
+	_menu_actions.focus_behavior_recursive = (Control.FOCUS_BEHAVIOR_DISABLED
+		if modal_visible else Control.FOCUS_BEHAVIOR_INHERITED)
+	if shown or was_visible:
+		focus_target.grab_focus()
 
 
 func _load_settings() -> void:

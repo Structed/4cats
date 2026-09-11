@@ -24,34 +24,42 @@ grow_vertical = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 
-[node name="Center" type="VBoxContainer" parent="."]
+[node name="Layout" type="VBoxContainer" parent="."]
 layout_mode = 1
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -130.0
-offset_top = -160.0
-offset_right = 130.0
-offset_bottom = 160.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 8.0
+offset_right = -12.0
+offset_bottom = -8.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = 8
 
-[node name="Icon" type="TextureRect" parent="Center"]
-custom_minimum_size = Vector2(0, 52)
+[node name="MenuCenter" type="CenterContainer" parent="Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Center" type="VBoxContainer" parent="Layout/MenuCenter"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="Icon" type="TextureRect" parent="Layout/MenuCenter/Center"]
+custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 texture = ExtResource("3_icon")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Title" type="Label" parent="Center"]
+[node name="Title" type="Label" parent="Layout/MenuCenter/Center"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
 text = "4cats"
 horizontal_alignment = 1
 
-[node name="Subtitle" type="Label" parent="Center"]
+[node name="Subtitle" type="Label" parent="Layout/MenuCenter/Center"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.68, 0.73, 0.8, 1)
 theme_override_font_sizes/font_size = 12
@@ -59,63 +67,53 @@ text = "Streuner finden, heimbringen, gesund pflegen."
 horizontal_alignment = 1
 autowrap_mode = 2
 
-[node name="Gap" type="Control" parent="Center"]
+[node name="Gap" type="Control" parent="Layout/MenuCenter/Center"]
 custom_minimum_size = Vector2(0, 4)
 layout_mode = 2
 
-[node name="ContinueButton" type="Button" parent="Center"]
+[node name="ContinueButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
 text = "Weiterspielen"
 
-[node name="NewGameButton" type="Button" parent="Center"]
+[node name="NewGameButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
 text = "Neues Spiel"
 
-[node name="OptionsButton" type="Button" parent="Center"]
+[node name="OptionsButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Optionen"
 
-[node name="QuitButton" type="Button" parent="Center"]
+[node name="QuitButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Beenden"
 
-[node name="CreditsButton" type="Button" parent="Center"]
+[node name="CreditsButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Credits"
 
-[node name="MadeWithLabel" type="Label" parent="."]
-layout_mode = 1
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 12.0
-offset_top = -26.0
-offset_right = 300.0
-offset_bottom = -10.0
-grow_vertical = 0
+[node name="Footer" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="MadeWithLabel" type="Label" parent="Layout/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.68, 0.73, 0.8, 1)
 theme_override_font_sizes/font_size = 11
 text = "Mit ❤️ gemacht von den Schmurfels"
 
-[node name="VersionLabel" type="Label" parent="."]
+[node name="VersionLabel" type="Label" parent="Layout/Footer"]
 unique_name_in_owner = true
-layout_mode = 1
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 12.0
-offset_top = -26.0
-offset_right = -12.0
-offset_bottom = -10.0
-grow_horizontal = 2
-grow_vertical = 0
+layout_mode = 2
+size_flags_horizontal = 3
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.68, 0.73, 0.8, 1)
 theme_override_font_sizes/font_size = 11
@@ -123,6 +121,7 @@ horizontal_alignment = 2
 
 [node name="CreditsDim" type="ColorRect" parent="."]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -132,6 +131,7 @@ color = Color(0.03, 0.04, 0.05, 0.72)
 
 [node name="CreditsPanel" type="PanelContainer" parent="."]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
 anchor_left = 0.5
 anchor_top = 0.5
@@ -175,6 +175,7 @@ text = "Schließen"
 
 [node name="OptionsDim" type="ColorRect" parent="."]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -184,6 +185,7 @@ color = Color(0.03, 0.04, 0.05, 0.72)
 
 [node name="OptionsPanel" type="PanelContainer" parent="."]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
 anchor_left = 0.5
 anchor_top = 0.5
@@ -258,6 +260,7 @@ text = "Schließen"
 
 [node name="ConfirmDim" type="ColorRect" parent="."]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -267,6 +270,7 @@ color = Color(0.03, 0.04, 0.05, 0.72)
 
 [node name="ConfirmPanel" type="PanelContainer" parent="."]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
 anchor_left = 0.5
 anchor_top = 0.5
