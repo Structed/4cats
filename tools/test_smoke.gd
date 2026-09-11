@@ -245,6 +245,7 @@ func _test_main_menu() -> void:
 	_press(menu, "%CreditsCloseButton")
 	await _wait(0.2)
 	_check(not _node(menu, "%CreditsPanel").visible, "Credits lassen sich schliessen")
+	_check(not _node(menu, "%CreditsDim").visible, "Credits entfernen die Abdunklung")
 
 	# Optionen auf und wieder zu.
 	_press(menu, "%OptionsButton")

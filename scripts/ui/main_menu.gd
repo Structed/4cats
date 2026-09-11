@@ -70,7 +70,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Blendet Abdunklung und Fenster gemeinsam ein oder aus.
+## Blendet Abdunklung und Credits-Fenster gemeinsam ein oder aus.
 func _set_credits_visible(shown: bool) -> void:
 	_credits_panel.visible = shown
 	_credits_dim.visible = shown
