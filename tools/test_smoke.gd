@@ -237,6 +237,15 @@ func _test_main_menu() -> void:
 		_check(version_label.mouse_filter == Control.MOUSE_FILTER_IGNORE,
 			"Die Versionsanzeige faengt keine Eingaben ab")
 
+	# Credits auf und wieder zu.
+	_press(menu, "%CreditsButton")
+	await _wait(0.2)
+	_check(_node(menu, "%CreditsPanel").visible, "Credits lassen sich oeffnen")
+	_check(_node(menu, "%CreditsDim").visible, "Credits dunkeln den Hintergrund ab")
+	_press(menu, "%CreditsCloseButton")
+	await _wait(0.2)
+	_check(not _node(menu, "%CreditsPanel").visible, "Credits lassen sich schliessen")
+
 	# Optionen auf und wieder zu.
 	_press(menu, "%OptionsButton")
 	await _wait(0.2)
