@@ -5,6 +5,8 @@ const NEED_LABELS := {
 	"hunger": "Hunger", "thirst": "Durst", "cleanliness": "Sauberkeit",
 	"health": "Gesundheit", "enrichment": "Beschäftigung",
 }
+const CAT_STATUS_WIDTH := 220.0
+const HINT_WIDTH := 240.0
 
 signal furnish_requested()
 signal shop_requested()
@@ -104,12 +106,13 @@ func _ready() -> void:
 	_hint_panel = PanelContainer.new()
 	add_child(_hint_panel)
 	_hint_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	_hint_panel.offset_left = -130
-	_hint_panel.offset_right = 130
-	_hint_panel.offset_top = -64
+	_hint_panel.offset_left = -HINT_WIDTH / 2.0
+	_hint_panel.offset_right = HINT_WIDTH / 2.0
+	_hint_panel.offset_top = -8
 	_hint_panel.offset_bottom = -8
 	_hint_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hint_panel.add_theme_stylebox_override("panel", _compact_panel_style())
 	_hint = _label("", 12)
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -161,9 +164,11 @@ func _ready() -> void:
 	refresh()
 
 func _process(delta: float) -> void:
-	var bottom := -16.0 - _hint_panel.size.y
+	_hint_panel.offset_top = -8.0 - _hint_panel.get_combined_minimum_size().y
+	var bottom := _hint_panel.offset_top - 8.0 if _hint_panel.visible else -8.0
 	_toast_panel.offset_bottom = bottom
 	_toast_panel.offset_top = bottom - maxf(40.0, _toast_panel.get_combined_minimum_size().y)
+	_cat_panel.offset_bottom = _cat_panel.offset_top + _cat_panel.get_combined_minimum_size().y
 	if _toast_time > 0:
 		_toast_time -= delta
 		if _toast_time <= 0:
@@ -174,8 +179,17 @@ func _process(delta: float) -> void:
 func _label(text: String, font_size: int) -> Label:
 	var label := Label.new()
 	label.text = text
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.add_theme_font_size_override("font_size", font_size)
 	return label
+
+func _compact_panel_style() -> StyleBox:
+	var style := get_theme_stylebox("panel", "PanelContainer").duplicate() as StyleBox
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	return style
 
 func _button(text: String, node_name: String, parent: Node) -> Button:
 	var button := Button.new()
@@ -194,30 +208,25 @@ func _build_cat_status() -> void:
 	_cat_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_cat_panel)
 	_cat_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_cat_panel.offset_left = -284
+	_cat_panel.offset_left = -CAT_STATUS_WIDTH - 8
 	_cat_panel.offset_right = -8
 	_cat_panel.offset_top = 70
 	_cat_panel.offset_bottom = 70
 	_cat_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_cat_panel.grow_vertical = Control.GROW_DIRECTION_END
-	var style := get_theme_stylebox("panel", "PanelContainer").duplicate() as StyleBox
-	style.content_margin_top = 6
-	style.content_margin_bottom = 6
-	style.content_margin_left = 8
-	style.content_margin_right = 8
-	_cat_panel.add_theme_stylebox_override("panel", style)
+	_cat_panel.add_theme_stylebox_override("panel", _compact_panel_style())
 	var box := VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_theme_constant_override("separation", 2)
+	box.add_theme_constant_override("separation", 0)
 	_cat_panel.add_child(box)
 	_cat_name = _label("", 11)
 	_cat_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_cat_name)
 	var needs := GridContainer.new()
-	needs.columns = 3
+	needs.columns = 2
 	needs.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	needs.add_theme_constant_override("h_separation", 6)
-	needs.add_theme_constant_override("v_separation", 2)
+	needs.add_theme_constant_override("h_separation", 4)
+	needs.add_theme_constant_override("v_separation", 0)
 	box.add_child(needs)
 	for need_key: String in NEED_LABELS:
 		var label := _label("", 10)
@@ -236,36 +245,34 @@ func _build_cat_status() -> void:
 	_cat_panel.hide()
 
 func set_cat_status(cat: CatData) -> void:
-	_cat_panel.visible = cat != null
+	_cat_panel.visible = cat != null and modal_kind.is_empty()
 	if cat == null:
 		return
 	_cat_name.text = "%s · Wohlbefinden: %d %%" % [cat.cat_name, roundi(cat.wellbeing())]
 	_cat_age.text = cat.age_title()
 	var needs: Dictionary = cat.needs()
-	var missing: PackedStringArray = []
 	for need_key: String in NEED_LABELS:
 		var value: float = needs[need_key]
 		var label: Label = _cat_need_labels[need_key]
-		label.text = "%s: %d" % [String(NEED_LABELS[need_key]), floori(value)]
-		if value < CatData.RECOVERY_THRESHOLD:
-			missing.append(String(NEED_LABELS[need_key]))
+		var missing := value < CatData.RECOVERY_THRESHOLD
+		label.text = "%s: %d%s" % [String(NEED_LABELS[need_key]), floori(value), "!" if missing else ""]
+		label.add_theme_color_override("font_color",
+			Color("#ffd18f") if missing else get_theme_color("font_color", "Label"))
 	var progress := floori(cat.recovery_progress() * 100.0)
-	var rule := "Alle %d Werte mindestens %d." % [needs.size(), int(CatData.RECOVERY_THRESHOLD)]
+	var rule := "alle Werte ab %d" % int(CatData.RECOVERY_THRESHOLD)
 	if not cat.all_needs_met():
-		_cat_recovery.text = "Genesung unterbrochen · %d %%" % progress \
+		_cat_recovery.text = "Genesung: %d %% · sinkt" % progress \
 			if cat.recovery_timer > 0 else "Pflege fehlt · Genesung: %d %%" % progress
-		_cat_details.text = "Fehlt: %s.\n%s%s" % [
-			", ".join(missing), "Fortschritt sinkt. " if cat.recovery_timer > 0 else "", rule]
+		_cat_details.text = "! Pflege fehlt · Ziel: " + rule
 	elif GameState.home_simulation.held_cat_id == cat.id:
 		_cat_recovery.text = "Genesung abgeschlossen" if cat.recovery_timer >= CatData.RECOVERY_SECONDS \
 			else "Genesung: %d %% · noch ca. %d s" % [
 				progress, ceili(GameState.recovery_seconds_remaining(cat))]
-		_cat_details.text = "Zur automatischen Vermittlung absetzen.\n" + rule
+		_cat_details.text = "Zum Vermitteln absetzen · " + rule
 	else:
-		_cat_recovery.text = "Genesung: %d %% · Automatische Vermittlung in ca. %d s" % [
+		_cat_recovery.text = "Genesung: %d %% · noch ca. %d s" % [
 			progress, ceili(GameState.recovery_seconds_remaining(cat))]
-		_cat_details.text = "Alle %d Werte mindestens %d halten." % [
-			needs.size(), int(CatData.RECOVERY_THRESHOLD)]
+		_cat_details.text = "Vermittlung automatisch · " + rule
 
 func refresh() -> void:
 	_coins.text = "%d Münzen" % GameState.coins
@@ -298,6 +305,7 @@ func fixture_hint() -> String:
 
 func set_hint(text: String) -> void:
 	_hint.text = text
+	_hint_panel.visible = not text.is_empty() and modal_kind.is_empty()
 
 func show_toast(text: String) -> void:
 	_toast.text = text
@@ -308,6 +316,7 @@ func show_toast(text: String) -> void:
 
 func set_building(building: bool) -> void:
 	_furnish.text = "Abbrechen" if building else "Einrichten"
+	set_hint("")
 	if building:
 		_cat_panel.hide()
 		_toast_time = 0.0
@@ -318,6 +327,7 @@ func open_modal(kind: String) -> void:
 	_cat_panel.hide()
 	_toast_panel.hide()
 	_modal_notice.hide()
+	_hint_panel.hide()
 	_dim.show()
 	_panel.show()
 	_populate()
@@ -331,6 +341,7 @@ func close_modal() -> void:
 	_panel.hide()
 	_modal_notice.hide()
 	_toast_panel.visible = _toast_time > 0.0
+	set_hint("")
 
 func _populate() -> void:
 	for child in _content.get_children():

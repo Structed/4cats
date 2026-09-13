@@ -105,8 +105,10 @@ haben jedoch eine andere Signatur: Beachte vor einem Wechsel unbedingt die
    **automatisch** vermittelt und bringt Münzen. Getragene Katzen musst du dafür
    erst absetzen. Fällt ein Wert unter 80, sinkt der Fortschritt wieder, statt nur
    zu pausieren. Für die gerade fokussierte oder getragene Katze zeigt eine
-   Zustandsanzeige alle fünf Werte, fehlende Voraussetzungen, den
-   Genesungsfortschritt und die verbleibende Zeit an.
+   kompakte Zustandsanzeige alle fünf Werte, die Altersgruppe, den
+   Genesungsfortschritt und die verbleibende Zeit an. Ein `!` markiert noch
+   fehlende Pflege; beim Tragen erinnert die Anzeige daran, die Katze zur
+   Vermittlung abzusetzen.
 7. **Einrichten und ausbauen**: Näpfe, Vorratsschrank, Wasserhahn, Waschplatz,
    Behandlungsstation, Spielzeug und Katzenklo sind frei auf einem Raster
    platzierbar. Die Grundausstattung sowie weitere Schränke und Wasserhähne
@@ -174,6 +176,11 @@ Futter im Schrank, auf dem Arm, in Näpfen (auch eingelagerten) und in bereits
 angekommenen Paketen zählt dabei mit. Vorhandene Rationen sperren weitere Hilfe.
 
 ### Einrichtung und Spielstände
+
+Beim freien Herumlaufen bleibt die untere Hinweisbox ausgeblendet. Sie erscheint
+nur für eine konkrete Aktion in Reichweite, beim Tragen, Pflegen oder Einrichten.
+Die kurzen Hinweise lassen mehr vom Haus sichtbar; eine vollständige Übersicht
+der Tasten findest du weiterhin im Pausenmenü.
 
 Im Einrichtungsmodus zeigt eine Vorschau vor der Spielfigur den Zielplatz.
 Erst die Bestätigung verändert die Einrichtung; Abbrechen lässt alles am
