@@ -37,8 +37,9 @@ oder mit Tastatur bedienbar.
    **automatisch** vermittelt und bringt Münzen. Getragene Katzen musst du dafür
    erst absetzen. Fällt ein Wert unter 80, sinkt der Fortschritt wieder, statt nur
    zu pausieren. Für die gerade fokussierte oder getragene Katze zeigt eine
-   Zustandsanzeige alle fünf Werte, fehlende Voraussetzungen, den
-   Genesungsfortschritt und die verbleibende Zeit an.
+   kompakte Zustandsanzeige alle fünf Werte, den Genesungsfortschritt und die
+   verbleibende Zeit an. Ein `!` markiert noch fehlende Pflege; beim Tragen
+   erinnert die Anzeige daran, die Katze zur Vermittlung abzusetzen.
 7. **Einrichten und ausbauen**: Näpfe, Waschplatz, Behandlungsstation, Spielzeug
    und Katzenklo sind frei auf einem Raster platzierbar. Eine Grundausstattung
    ist kostenlos; zusätzliche Einrichtung und die bisherigen Upgrades
@@ -56,6 +57,11 @@ Die Versorgung läuft auch weiter, wenn du draußen Katzen rettest. Pause,
 geöffnete Kataloge, Hauptmenü und geschlossene App halten sie an; es gibt
 keine nachträgliche Offline-Simulation. Gesundheit verbessert sich durch
 Behandlung, nicht automatisch. Es gibt weiterhin keinen Katzentod.
+
+Beim freien Herumlaufen bleibt die untere Hinweisbox ausgeblendet. Sie erscheint
+nur für eine konkrete Aktion in Reichweite, beim Tragen, Pflegen oder Einrichten.
+Die kurzen Hinweise lassen mehr vom Haus sichtbar; eine vollständige Übersicht
+der Tasten findest du weiterhin im Pausenmenü.
 
 Im Einrichtungsmodus zeigt eine Vorschau vor der Spielfigur den Zielplatz.
 Erst die Bestätigung verändert die Einrichtung; Abbrechen lässt alles am

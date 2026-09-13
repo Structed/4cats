@@ -2,10 +2,6 @@
 extends Node2D
 
 const REACH := 24.0
-const NEED_TEXT := {
-	"hunger": "hat Hunger", "thirst": "hat Durst", "cleanliness": "möchte gewaschen werden",
-	"health": "braucht Behandlung", "enrichment": "möchte spielen",
-}
 const RELEASE_ACTIONS: PackedStringArray = [
 	"move_left", "move_right", "move_up", "move_down", "interact", "sprint",
 	"home_furnish", "home_rotate", "home_store",
@@ -156,7 +152,7 @@ func _process(delta: float) -> void:
 	if simulation.is_caring():
 		player.velocity = Vector2.ZERO
 		hud.set_cat_status(simulation.cat_by_id(simulation.held_cat_id))
-		hud.set_hint("Sanft versorgen …\nAktion / Esc: abbrechen")
+		hud.set_hint("Pflege …\nAktion / Esc: abbrechen")
 		_touch.call("set_action_label", "Abbrechen")
 	elif _preview == null:
 		_resolve_focus()
@@ -207,11 +203,11 @@ func _resolve_focus() -> void:
 	_focus_kind = ""
 	var closest := REACH
 	var holding := not simulation.held_cat_id.is_empty()
-	var hint := "Geh zu einer Katze oder einem Napf.\nB: Einrichten · Esc: Pause"
+	var hint := ""
 	if holding:
 		_focus_kind = "drop"
 		var held := simulation.cat_by_id(simulation.held_cat_id)
-		hint = "%s absetzen\nOder zum Waschplatz / zur Behandlung tragen." % held.cat_name
+		hint = "%s absetzen\nZum Waschen oder Behandeln tragen." % held.cat_name
 	for actor: HomeCatActor in _cat_actors.values():
 		actor.selected = false
 		if holding:
@@ -222,7 +218,9 @@ func _resolve_focus() -> void:
 			closest = distance
 			_focus_kind = "cat"
 			_focus_id = actor.data.id
-			hint = "%s aufheben\n%s" % [actor.data.cat_name, _cat_hint(actor.data)]
+			hint = "%s aufheben" % actor.data.cat_name
+			if state.toilet_elapsed >= HomeSimulation.TOILET_OVERDUE:
+				hint += "\nSauberes, erreichbares Katzenklo nötig."
 	for item in GameState.home.items:
 		if not item.placed:
 			continue
@@ -243,15 +241,15 @@ func _resolve_focus() -> void:
 			_focus_kind = "item"
 			_focus_id = item.id
 			match item.kind:
-				"food": hint = "Futter nachfüllen\nKostenlos · Katzen bedienen sich selbst."
-				"water": hint = "Wasser nachfüllen\nKostenlos · Katzen bedienen sich selbst."
-				"litter": hint = "Katzenklo reinigen\n" + ("Die Streu ist sauber." if item.dirt == 0 else "Frische Streu wird gebraucht.")
-				"wash": hint = "Katze waschen\nAm Waschplatz sanft säubern."
-				"vet": hint = "Katze behandeln\nAn der Station gesund pflegen."
+				"food": hint = "Futter nachfüllen"
+				"water": hint = "Wasser nachfüllen"
+				"litter": hint = "Katzenklo reinigen" + ("\nStreu sauber." if item.dirt == 0 else "")
+				"wash": hint = "Katze waschen"
+				"vet": hint = "Katze behandeln"
 	if not holding and player.position.distance_to(HomeCatalog.world(HomeCatalog.ENTRY)) < closest \
 			and _clear_line(HomeCatalog.world(HomeCatalog.ENTRY)):
 		_focus_kind = "exit"
-		hint = "Rausgehen und Katzen retten"
+		hint = "Rausgehen · Katzen retten"
 	if _focus_kind == "cat":
 		(_cat_actors[_focus_id] as HomeCatActor).selected = true
 	elif _focus_kind == "item":
@@ -262,21 +260,9 @@ func _resolve_focus() -> void:
 	elif _focus_kind == "cat":
 		observed = simulation.cat_by_id(_focus_id)
 	hud.set_cat_status(observed)
-	hud.set_hint(("E / Aktion: " if not _focus_kind.is_empty() else "") + hint)
+	var shortcut := "E: " if not hint.is_empty() and not bool(_touch.call("is_touch_visible")) else ""
+	hud.set_hint(shortcut + hint)
 	_touch.call("set_action_label", hint.get_slice("\n", 0) if not _focus_kind.is_empty() else "Interaktion")
-
-func _cat_hint(cat: CatData) -> String:
-	var lowest := CatData.RECOVERY_THRESHOLD
-	var result := "Fühlt sich wohl."
-	for need: String in NEED_TEXT:
-		var value := float(cat.get(need))
-		if value < lowest:
-			lowest = value
-			result = "%s %s." % [cat.cat_name, String(NEED_TEXT[need])]
-	var state: HomeCatState = GameState.home.cats[cat.id]
-	if state.toilet_elapsed >= HomeSimulation.TOILET_OVERDUE:
-		result = "Braucht ein sauberes, erreichbares Katzenklo."
-	return result
 
 func interact() -> void:
 	if get_tree().paused or simulation.is_caring():
@@ -392,13 +378,13 @@ func _update_preview() -> void:
 		_preview_error = "Dieser Gegenstand wird gerade benutzt."
 	_preview.allowed = _preview_error.is_empty()
 	if bool(_touch.call("is_touch_visible")):
-		hud.set_hint("%s platzieren\nLinks mit dem Joystick bewegen.\n%s" % [
+		hud.set_hint("%s platzieren\nJoystick: bewegen · rechts aufstellen%s" % [
 			HomeCatalog.title(_preview.data.kind),
-			"Rechts aufstellen, drehen oder einlagern." if _preview.allowed else _preview_error])
+			"" if _preview.allowed else "\n" + _preview_error])
 	else:
-		hud.set_hint("%s platzieren · R drehen · X einlagern\n%s" % [
+		hud.set_hint("%s · R drehen · X einlagern\n%s" % [
 			HomeCatalog.title(_preview.data.kind),
-			"E bestätigen · Esc abbrechen" if _preview.allowed else _preview_error])
+			"E aufstellen · Esc abbrechen" if _preview.allowed else _preview_error])
 	_touch.call("set_action_label", "Aufstellen")
 
 func _place_preview() -> void:
