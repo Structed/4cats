@@ -14,7 +14,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 ]
 
 const REQUIRED_AUTOLOADS: PackedStringArray = [
-	"GameState", "SaveManager", "AudioManager", "SceneRouter",
+	"GameState", "SaveManager", "AudioManager", "SceneRouter", "AnalyticsManager",
 ]
 
 const REQUIRED_SCENES: PackedStringArray = [
@@ -67,6 +67,7 @@ func _initialize() -> void:
 
 	print("--- App-Version ---")
 	failures.append_array(_check_versions())
+	failures.append_array(_check_analytics())
 
 	print("")
 	if failures.is_empty():
@@ -77,6 +78,26 @@ func _initialize() -> void:
 			printerr("FEHLER: %s" % failure)
 		printerr("%d Problem(e) gefunden." % failures.size())
 		quit(1)
+
+
+func _check_analytics() -> PackedStringArray:
+	var problems: PackedStringArray = []
+	var enabled: Variant = ProjectSettings.get_setting("analytics/enabled")
+	if enabled is not bool:
+		problems.append("analytics/enabled muss explizit true oder false sein.")
+	if enabled == true:
+		if String(ProjectSettings.get_setting("analytics/project_token", "")).is_empty() \
+				or String(ProjectSettings.get_setting("analytics/privacy_contact", "")).strip_edges().is_empty():
+			problems.append("Aktive Analytics brauchen Projekt-Token und Datenschutzkontakt.")
+	var presets := ConfigFile.new()
+	if presets.load("res://export_presets.cfg") != OK:
+		problems.append("Export-Presets fuer Analytics nicht lesbar.")
+	else:
+		for section in presets.get_sections():
+			if presets.get_value(section, "platform", "") == "Android" \
+					and presets.get_value(section + ".options", "permissions/internet", false) != true:
+				problems.append("Android braucht INTERNET fuer freiwillige Nutzungsanalyse.")
+	return problems
 
 
 func _check_versions() -> PackedStringArray:

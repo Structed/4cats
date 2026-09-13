@@ -27,6 +27,8 @@ const HOME_HINT_LAYOUT_CASES: PackedStringArray = [
 	"Behandlungsstation platzieren\nJoystick: bewegen · rechts aufstellen\nDie Bedienseite von „Behandlungsstation“ ist nicht erreichbar.",
 	"E: Mimi aufheben",
 ]
+const MENU_FOCUS_ACTIONS: Array[StringName] = [
+	&"ui_focus_next", &"ui_focus_prev", &"ui_up", &"ui_down", &"ui_left", &"ui_right"]
 
 var _failures: PackedStringArray = []
 
@@ -58,6 +60,7 @@ func _check(condition: bool, description: String) -> void:
 
 func _run() -> void:
 	await _test_main_menu()
+	await _test_analytics_menu()
 	await _test_home()
 	await _test_adoption_status()
 	await _test_home_hint_layout()
@@ -251,11 +254,59 @@ func _test_main_menu() -> void:
 		_check(version_label.mouse_filter == Control.MOUSE_FILTER_IGNORE,
 			"Die Versionsanzeige faengt keine Eingaben ab")
 
+	await _test_main_menu_layout(menu)
+
+	var credits_button: Button = _node(menu, "%CreditsButton")
+	var credits_close: Button = _node(menu, "%CreditsCloseButton")
+	var credits_panel: PanelContainer = _node(menu, "%CreditsPanel")
+	var credits_dim: ColorRect = _node(menu, "%CreditsDim")
+	var options_button: Button = _node(menu, "%OptionsButton")
+	_check(not credits_panel.visible and not credits_dim.visible,
+		"Credits sind beim Start geschlossen")
+
+	# Echte Eingaben pruefen auch Fokus und Abschirmung, nicht nur Signale.
+	credits_button.grab_focus()
+	_send_ui_action(&"ui_accept")
+	await _wait(0.2)
+	_check(credits_panel.visible, "Credits lassen sich per Tastatur oeffnen")
+	_check(credits_dim.visible, "Credits dunkeln den Hintergrund ab")
+	var credits_text: Label = credits_panel.get_node("Box/Text")
+	_check(credits_text.text.contains("Support:\nYvonne Ebner"),
+		"Die Credits nennen Yvonne Ebner fuer den Support")
+	_check(credits_panel.get_viewport_rect().encloses(credits_panel.get_global_rect())
+		and credits_panel.get_global_rect().encloses(credits_text.get_global_rect())
+		and credits_panel.get_global_rect().encloses(credits_close.get_global_rect()),
+		"Alle Credits und der Schliessen-Knopf passen vollstaendig ins Bild")
+	_check(credits_close.has_focus(), "Credits fokussieren den Schliessen-Knopf")
+	for action in MENU_FOCUS_ACTIONS:
+		_send_ui_action(action)
+		_check(credits_close.has_focus(), "Der Fokus bleibt in den Credits (%s)" % action)
+	_click_control(options_button)
+	_check(not _node(menu, "%OptionsPanel").visible,
+		"Die Credits sperren Mausklicks auf das Hauptmenue")
+
+	_click_control(credits_close)
+	await _wait(0.2)
+	_check(not credits_panel.visible and not credits_dim.visible,
+		"Credits lassen sich mit dem Schliessen-Knopf schliessen")
+	_check(credits_button.has_focus(), "Nach den Credits kehrt der Fokus ins Hauptmenue zurueck")
+
+	_click_control(credits_button)
+	_check(credits_panel.visible, "Credits lassen sich per Maus erneut oeffnen")
+	_send_ui_action(&"ui_accept")
+	_check(not credits_panel.visible and not credits_dim.visible,
+		"Credits lassen sich per Tastatur bestaetigen und schliessen")
+	_click_control(credits_button)
+	_send_ui_action(&"pause")
+	_check(not credits_panel.visible and not credits_dim.visible and credits_button.has_focus(),
+		"Pause schliesst die Credits samt Abdunklung und stellt den Fokus wieder her")
+
 	# Optionen auf und wieder zu.
 	_press(menu, "%OptionsButton")
 	await _wait(0.2)
 	_check(_node(menu, "%OptionsPanel").visible, "Optionen lassen sich oeffnen")
 	_check(_node(menu, "%OptionsDim").visible, "Dahinter wird abgedunkelt")
+	_check(_node(menu, "%MasterSlider").has_focus(), "Die Optionen erhalten den Tastaturfokus")
 
 	# Alle Regler bewegen.
 	for slider_name in ["%MasterSlider", "%SfxSlider", "%MusicSlider"]:
@@ -271,21 +322,205 @@ func _test_main_menu() -> void:
 	_press(menu, "%OptionsCloseButton")
 	await _wait(0.2)
 	_check(not _node(menu, "%OptionsPanel").visible, "Optionen lassen sich schliessen")
+	_check(options_button.has_focus(), "Nach den Optionen kehrt der Fokus ins Hauptmenue zurueck")
 
 	# Bestaetigungsfenster: nur sichtbar, wenn ein Spielstand vorliegt.
 	SaveManager.save_game()
 	_press(menu, "%NewGameButton")
 	await _wait(0.2)
 	_check(_node(menu, "%ConfirmPanel").visible, "Nachfrage vor dem Ueberschreiben")
+	_check(_node(menu, "%ConfirmNoButton").has_focus(), "Die Nachfrage fokussiert Abbrechen")
 	_press(menu, "%ConfirmNoButton")
 	await _wait(0.2)
 	_check(not _node(menu, "%ConfirmPanel").visible, "Nachfrage laesst sich abbrechen")
+	_check(_node(menu, "%NewGameButton").has_focus(), "Nach Abbrechen kehrt der Fokus zurueck")
 
 	menu.queue_free()
 	await _wait(0.1)
 
 
+func _test_main_menu_layout(menu: Node) -> void:
+	var window := get_window()
+	var previous_size := window.size
+	var continue_button: Button = _node(menu, "%ContinueButton")
+	var continue_visible := continue_button.visible
+	var center: Control = _node(menu, "%Center")
+	var attribution: Label = _node(menu, "%MadeWithLabel")
+	var version: Label = _node(menu, "%VersionLabel")
+	for window_size in UI_WINDOW_SIZES:
+		window.size = window_size
+		for shown: bool in [false, true]:
+			continue_button.visible = shown
+			await _wait(0.1)
+			var viewport := get_viewport().get_visible_rect()
+			var menu_rect := center.get_global_rect()
+			var attribution_rect := attribution.get_global_rect()
+			var version_rect := version.get_global_rect()
+			var context := "%s, Weiterspielen=%s" % [window_size, shown]
+			_check(viewport.encloses(menu_rect) and viewport.encloses(attribution_rect)
+				and viewport.encloses(version_rect),
+				"Hauptmenue und Fusszeile liegen vollstaendig im Bildschirm (%s)" % context)
+			_check(not menu_rect.intersects(attribution_rect)
+				and not menu_rect.intersects(version_rect)
+				and not attribution_rect.intersects(version_rect),
+				"Hauptmenue und Fusszeile ueberlappen sich nicht (%s)" % context)
+			_check(attribution.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+				"Die Fusszeile faengt keine Eingaben ab (%s)" % context)
+	continue_button.visible = continue_visible
+	window.size = previous_size
+	await _wait(0.1)
+
+
 # --- Zuhause -----------------------------------------------------------------
+
+func _test_analytics_menu() -> void:
+	print("--- Einwilligung und Widerruf ---")
+	var suite: GDScript = load("res://tools/test_analytics.gd")
+	if suite == null or not suite.can_instantiate():
+		_check(false, "Analytics-Testhilfe laesst sich laden")
+		return
+	await _test_analytics_first_start(suite)
+	var menu := await _load_scene("res://scenes/ui/main_menu.tscn")
+	if menu == null:
+		return
+	var path := SaveManager.save_path.get_base_dir().path_join("analytics_ui.json")
+	var service: Node = suite.make_ui_service(path)
+	var dialog: AnalyticsConsent = menu.get("_analytics_dialog")
+	var accept: Button = dialog.get("_accept")
+	var decline: Button = dialog.get("_decline")
+	var panel: PanelContainer = dialog.get("_panel")
+	var details: Button = dialog.get("_details")
+	var message: RichTextLabel = dialog.get("_message")
+	var credits_button: Button = _node(menu, "%CreditsButton")
+	var options_panel: PanelContainer = _node(menu, "%OptionsPanel")
+	var options_close: Button = _node(menu, "%OptionsCloseButton")
+	var analytics_button: Button = menu.get("_analytics_button")
+	_check(not dialog.visible, "Entwicklungslaeufe fragen nicht nach einer unmoeglichen Freigabe")
+	credits_button.grab_focus()
+	var original_size := get_tree().root.size
+	for window_size in UI_WINDOW_SIZES:
+		get_tree().root.size = window_size
+		dialog.present(service)
+		await _wait(0.1)
+		var bounds := dialog.get_viewport_rect()
+		_check(dialog.visible and bounds.encloses(panel.get_global_rect())
+			and panel.get_global_rect().encloses(accept.get_global_rect())
+			and panel.get_global_rect().encloses(decline.get_global_rect())
+			and panel.get_global_rect().encloses(details.get_global_rect()),
+			"Einwilligung und beide Knoepfe passen bei %s ins Bild" % window_size)
+		_check(not accept.disabled and accept.text == "Ja, erlauben" and decline.text == "Nein danke"
+			and is_equal_approx(accept.size.x, decline.size.x),
+			"Zustimmung und Ablehnung sind gleichwertig erreichbar")
+		_check(message.text == AnalyticsConsent.SUMMARY and message.get_content_height() <= message.size.y,
+			"Die kurze Erklaerung ist bei %s ohne Scrollen lesbar" % window_size)
+		_send_ui_action(&"ui_focus_next")
+		_check(details.has_focus(), "Datenschutzdetails sind vor der Entscheidung per Tastatur erreichbar")
+		_send_ui_action(&"ui_accept")
+		await _wait(0.1)
+		_check(message.text == String(service.call("privacy_text"))
+			and details.text == "Zurück zur Kurzfassung"
+			and bounds.encloses(panel.get_global_rect()),
+			"Vollstaendige Datenschutzangaben bleiben vor der Freigabe zugaenglich")
+		_check_focus_within(panel, "Datenschutzdetails bei %s" % window_size)
+		_click_control(details)
+		await _wait(0.1)
+		_check(message.text == AnalyticsConsent.SUMMARY and not bool(service.call("has_consent")),
+			"Zurueck zur Kurzfassung gibt keine versehentliche Freigabe")
+		_check_focus_within(panel, "Einwilligung bei %s" % window_size)
+		_click_control(credits_button)
+		_check(not _node(menu, "%CreditsPanel").visible,
+			"Die Einwilligung sperrt auch den neuen Credits-Knopf")
+	get_tree().root.size = original_size
+	_send_ui_action(&"pause")
+	_check(not dialog.visible and not bool(service.call("needs_consent"))
+		and not bool(service.call("has_consent")), "Escape bei Erstabfrage speichert eine Ablehnung")
+	_check(credits_button.has_focus(), "Nach der Erstabfrage kehrt der Fokus zum Credits-Knopf zurueck")
+	dialog.present(service)
+	accept.pressed.emit()
+	_check(not dialog.visible and bool(service.call("has_consent")), "Zustimmen aktiviert erst nach der Entscheidung")
+	dialog.present(service)
+	dialog.dismiss()
+	_check(bool(service.call("has_consent")), "Schliessen einer bestehenden Info widerruft nicht versehentlich")
+	_press(menu, "%OptionsButton")
+	analytics_button.grab_focus()
+	dialog.present(service)
+	_check_focus_within(panel, "Nutzungsanalyse ueber den Optionen")
+	_click_control(options_close)
+	_check(options_panel.visible, "Der Analysedialog sperrt die darunterliegenden Optionen")
+	_send_ui_action(&"pause")
+	_check(not dialog.visible and options_panel.visible and analytics_button.has_focus(),
+		"Escape schliesst nur die Analyseinfo und gibt den Optionen ihren Fokus zurueck")
+	_press(menu, "%OptionsCloseButton")
+	_check(_node(menu, "%OptionsButton").has_focus(),
+		"Nach verschachtelten Dialogen ist das Hauptmenue wieder bedienbar")
+	dialog.present(service)
+	decline.pressed.emit()
+	_check(not dialog.visible and not bool(service.call("has_consent")), "Expliziter Widerruf schaltet die Erfassung aus")
+	_check(not AnalyticsManager.has_consent(), "Die echte Testlauf-Instanz bleibt dabei ausgeschaltet")
+	menu.queue_free()
+	await _wait(0.1)
+	service.free()
+	_remove_analytics_ui_files(path)
+
+
+func _test_analytics_first_start(suite: GDScript) -> void:
+	for allow: bool in [false, true]:
+		var path := SaveManager.save_path.get_base_dir().path_join("analytics_first_start_%s.json" % allow)
+		var service: Node = suite.make_ui_service(path)
+		var menu := await _load_scene("res://scenes/ui/main_menu.tscn", {"_analytics_service": service})
+		if menu == null:
+			service.free()
+			return
+		var dialog: AnalyticsConsent = menu.get("_analytics_dialog")
+		var panel: PanelContainer = dialog.get("_panel")
+		_check(dialog.visible and panel.has_focus(),
+			"Beim ersten Start erscheint die Freigabeabfrage automatisch und ohne vorausgewaehlte Antwort")
+		_send_ui_action(&"ui_accept")
+		service.call("game_started", "continue")
+		service.call("_process", 0.0)
+		var state: Dictionary = service.get("_state")
+		var client: Node = service.get("_client")
+		var requests: Array = client.get("requests")
+		_check(dialog.visible and not bool(service.call("has_consent"))
+			and state["distinct_id"] == "" and state["queue"].is_empty()
+			and requests.is_empty() and not FileAccess.file_exists(path),
+			"Vor der bewussten Freigabe gibt es weder Kennung noch Messung, Datei oder Versand")
+		var choice: Button = dialog.get("_accept" if allow else "_decline")
+		_click_control(choice)
+		_check(not dialog.visible and bool(service.call("has_consent")) == allow
+			and not bool(service.call("needs_consent")),
+			"Die Erststart-Entscheidung %s wird per Mausklick gespeichert" % allow)
+		state = service.get("_state")
+		var previous_id: String = state["distinct_id"]
+		menu.queue_free()
+		await _wait(0.1)
+		service.free()
+
+		service = suite.make_ui_service(path)
+		menu = await _load_scene("res://scenes/ui/main_menu.tscn", {"_analytics_service": service})
+		if menu == null:
+			service.free()
+			_remove_analytics_ui_files(path)
+			return
+		dialog = menu.get("_analytics_dialog")
+		state = service.get("_state")
+		_check(not dialog.visible and bool(service.call("has_consent")) == allow
+			and not bool(service.call("needs_consent")) and state["distinct_id"] == previous_id,
+			"Nach Neustart bleibt die Entscheidung %s ohne erneute Abfrage erhalten" % allow)
+		var analytics_button: Button = menu.get("_analytics_button")
+		_check(analytics_button.text == "Nutzungsanalyse: " + ("an" if allow else "aus"),
+			"Die Optionen zeigen die gespeicherte Freigabeentscheidung")
+		menu.queue_free()
+		await _wait(0.1)
+		service.free()
+		_remove_analytics_ui_files(path)
+
+
+func _remove_analytics_ui_files(path: String) -> void:
+	for file in [path, path + ".tmp"]:
+		if FileAccess.file_exists(file):
+			_check(DirAccess.remove_absolute(file) == OK, "Analytics-Testdatei wird entfernt")
+
 
 func _test_home() -> void:
 	print("--- Zuhause ---")
@@ -1023,12 +1258,14 @@ func _test_scene_transitions() -> void:
 
 # --- Hilfen ------------------------------------------------------------------
 
-func _load_scene(path: String) -> Node:
+func _load_scene(path: String, properties: Dictionary = {}) -> Node:
 	if not ResourceLoader.exists(path):
 		_check(false, "Szene vorhanden: %s" % path)
 		return null
 	var scene: PackedScene = load(path)
 	var node: Node = scene.instantiate()
+	for key: String in properties:
+		node.set(key, properties[key])
 	get_tree().root.add_child(node)
 	await get_tree().process_frame
 	await get_tree().physics_frame
@@ -1046,6 +1283,31 @@ func _press(root: Node, unique_path: String) -> void:
 	var button := _node(root, unique_path) as Button
 	if button != null:
 		button.pressed.emit()
+
+
+func _click_control(control: Control) -> void:
+	for pressed: bool in [true, false]:
+		var event := InputEventMouseButton.new()
+		event.position = control.get_global_rect().get_center()
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.pressed = pressed
+		get_viewport().push_input(event, true)
+
+
+func _send_ui_action(action: StringName) -> void:
+	for pressed: bool in [true, false]:
+		var event := InputEventAction.new()
+		event.action = action
+		event.pressed = pressed
+		get_viewport().push_input(event)
+
+
+func _check_focus_within(panel: Control, context: String) -> void:
+	for action in MENU_FOCUS_ACTIONS:
+		_send_ui_action(action)
+		var focused := get_viewport().gui_get_focus_owner()
+		_check(focused != null and (focused == panel or panel.is_ancestor_of(focused)),
+			"Der Fokus bleibt im Dialog: %s (%s)" % [context, action])
 
 
 ## Wartet echte Sekunden.
