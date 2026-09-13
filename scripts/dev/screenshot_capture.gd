@@ -54,6 +54,44 @@ func _apply_preview() -> void:
 			scene.call("_on_options_pressed")
 		elif argument == "--menu-preview=analytics" and scene.has_method("_show_analytics"):
 			scene.call("_show_analytics")
+		elif argument == "--menu-preview=difficulty" and scene.has_method("_on_new_game_pressed"):
+			scene.call("_on_new_game_pressed")
+			var choice: OptionButton = scene.get_node("%DifficultyChoice")
+			var index := DifficultyRules.IDS.find(GameState.difficulty_id)
+			choice.select(index)
+			choice.item_selected.emit(index)
+		elif argument == "--rescue-preview=shop" and scene.has_method("_try_pick_up"):
+			var generator: LevelGenerator = scene.get("_generator")
+			var player: Player = scene.get_node("Player")
+			player.position = LevelGenerator.cell_to_world(generator.shop_cell)
+			_reset_camera(player)
+			scene.call("_try_pick_up")
+		elif argument == "--home-preview=supplies" and scene.has_method("_open_modal"):
+			scene.call("_open_modal", "supplies")
+		elif argument in ["--home-preview=parcel", "--home-preview=critical"]:
+			if "--demo" not in OS.get_cmdline_user_args() or not scene.has_method("_resolve_focus"):
+				push_error("Diese Hausvorschau braucht --demo und die Hausszene.")
+				get_tree().quit(1)
+				return
+			GameState.simulation_active = false
+			var player: Player = scene.get_node("Player")
+			if argument == "--home-preview=parcel":
+				GameState.order_food()
+				GameState.order_food()
+				GameState.supplies.step(DifficultyRules.value(GameState.difficulty_id, "delivery_seconds"))
+				GameState.supplies_changed.emit()
+				player.position = HomeCatalog.world(SupplyCatalog.PARCEL_CELL + Vector2i.UP)
+			else:
+				var cat: CatData = GameState.home_cats[0]
+				cat.hunger = 0.0
+				cat.thirst = 0.0
+				cat.health = 0.0
+				cat.critical_elapsed = DifficultyRules.value(GameState.difficulty_id, "grace") / 2.0
+				var state: HomeCatState = GameState.home.cats[cat.id]
+				player.position = state.position + Vector2(0, 12)
+				GameState.home_cats_changed.emit()
+			_reset_camera(player)
+			scene.call("_resolve_focus")
 		elif argument == "--home-preview=furnish" and scene.has_method("_open_modal"):
 			scene.call("_open_modal", "furnish")
 		elif argument == "--home-preview=placement" and scene.has_method("start_placement"):
@@ -76,3 +114,9 @@ func _apply_preview() -> void:
 			camera.reset_smoothing()
 			camera.force_update_scroll()
 			scene.call("_resolve_focus")
+
+
+func _reset_camera(player: Player) -> void:
+	var camera: Camera2D = player.get_node("Camera")
+	camera.reset_smoothing()
+	camera.force_update_scroll()

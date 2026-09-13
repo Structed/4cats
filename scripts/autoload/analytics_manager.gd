@@ -5,7 +5,10 @@ signal failed(message: String)
 
 const PLAYER_ACTIONS := ["interact", "sprint", "home_furnish", "home_rotate", "home_store"]
 const DEV_FLAGS := ["--test", "--playtest", "--smoketest", "--demo", "--touch-preview"]
-const DEV_PREFIXES := ["--start=", "--screenshot=", "--home-preview=", "--menu-preview="]
+const DEV_PREFIXES := [
+	"--start=", "--screenshot=", "--home-preview=", "--menu-preview=",
+	"--rescue-preview=", "--demo-mode=",
+]
 const MAX_FRAME_GAP_MS := 5000
 
 var last_error: String = ""

@@ -86,12 +86,14 @@ haben jedoch eine andere Signatur: Beachte vor einem Wechsel unbedingt die
    Vertrauens. Fliehen ist langsamer als Gehen, du holst sie also immer ein.
 3. **Gefahren**: Autos fahren die Straßen entlang, Hunde streunen herum. Wer
    erschrickt, verliert eine getragene Katze – sie läuft weg, mehr passiert nicht.
-   Es gibt **kein Zeitlimit** und man kann nicht verlieren.
+   Die Rettung hat **kein eigenes Zeitlimit**. Die Versorgung der Hauskatzen
+   läuft währenddessen weiter; ihre Risiken hängen vom gewählten Modus ab.
 4. **Heimbringen**: Ein grüner Pfeil zeigt dir während der gesamten Rettung den
    Weg nach Hause – am Bildschirmrand oder direkt an der Heimzone, wenn sie im
    Bild ist. Betritt die grün markierte Heimzone, um Katzen abzugeben.
 5. **Pflegen**: Zu Hause laufen die Katzen frei herum. Du bewegst dich mit der
-   Spielfigur durch das Haus, füllst Futter und Wasser nach und reinigst das
+   Spielfigur durch das Haus, holst Futter am Vorratsschrank und Wasser am Hahn,
+   trägst beides zu den Näpfen und reinigst das
    Katzenklo. Katzen fressen, trinken, spielen und benutzen das Klo selbst.
    Zum Waschen oder Behandeln nimmst du eine Katze auf und trägst sie zur
    passenden Station. Symbole und Animationen zeigen, was sie braucht –
@@ -103,26 +105,77 @@ haben jedoch eine andere Signatur: Beachte vor einem Wechsel unbedingt die
    **automatisch** vermittelt und bringt Münzen. Getragene Katzen musst du dafür
    erst absetzen. Fällt ein Wert unter 80, sinkt der Fortschritt wieder, statt nur
    zu pausieren. Für die gerade fokussierte oder getragene Katze zeigt eine
-   kompakte Zustandsanzeige alle fünf Werte, den Genesungsfortschritt und die
-   verbleibende Zeit an. Ein `!` markiert noch fehlende Pflege; beim Tragen
-   erinnert die Anzeige daran, die Katze zur Vermittlung abzusetzen.
-7. **Einrichten und ausbauen**: Näpfe, Waschplatz, Behandlungsstation, Spielzeug
-   und Katzenklo sind frei auf einem Raster platzierbar. Eine Grundausstattung
-   ist kostenlos; zusätzliche Einrichtung und die bisherigen Upgrades
+   kompakte Zustandsanzeige alle fünf Werte, die Altersgruppe, den
+   Genesungsfortschritt und die verbleibende Zeit an. Ein `!` markiert noch
+   fehlende Pflege; beim Tragen erinnert die Anzeige daran, die Katze zur
+   Vermittlung abzusetzen.
+7. **Einrichten und ausbauen**: Näpfe, Vorratsschrank, Wasserhahn, Waschplatz,
+   Behandlungsstation, Spielzeug und Katzenklo sind frei auf einem Raster
+   platzierbar. Die Grundausstattung sowie weitere Schränke und Wasserhähne
+   sind kostenlos; weitere Näpfe, Pflegeplätze, Spielzeug und die Upgrades
    (Tragekorb, Leckerlis, Komfort, Tierarzt) kosten Münzen.
 
 ### Leben im Katzenhaus
 
-**Versorgung kostet keine Münzen:** Futter und Wasser nachfüllen, waschen,
-behandeln und frische Streu bereitstellen sind jederzeit kostenlos. Vorräte
-in Näpfen sind endlich; Katzen brauchen tatsächlich erreichbare, gefüllte
-Näpfe und ausgelegtes Spielzeug. Ein volles Katzenklo wird gemieden und
-beeinträchtigt die Sauberkeit der betroffenen Katzen.
+**Vorräte müssen wirklich geholt werden:** Neue Spiele beginnen mit 24
+Futterportionen im gemeinsamen Hausvorrat. Am Schrank nimmst du bis zu zwölf
+Portionen auf; am Wasserhahn füllst du ein Gefäß mit bis zu 16 Wasserportionen.
+Erst am passenden Napf wird nachgefüllt. Ein voller Napf verbraucht nichts,
+Restmengen bleiben auf dem Arm und können an der Quelle zurückgegeben werden.
+Futterpakete müssen zuerst in den Schrank eingeräumt werden. Eine Hauskatze und
+eine Versorgungsladung lassen sich nicht gleichzeitig auf dem Arm tragen; der
+Rettungskorb ist davon unabhängig.
 
-Die Versorgung läuft auch weiter, wenn du draußen Katzen rettest. Pause,
-geöffnete Kataloge, Hauptmenü und geschlossene App halten sie an; es gibt
-keine nachträgliche Offline-Simulation. Gesundheit verbessert sich durch
-Behandlung, nicht automatisch. Es gibt weiterhin keinen Katzentod.
+**Nachschub gibt es im begehbaren Laden im Viertel** oder per Bestellung im
+Versorgungsdialog zu Hause. Ein Paket enthält 24 Futterportionen. Mehrere
+Bestellungen können gleichzeitig unterwegs sein. Jede Lieferung hat ihre eigene
+Restzeit; fertige Pakete warten an der Haustür und müssen einzeln abgeholt und
+eingeräumt werden. Weder die Ankunft noch das Kaufen eines weiteren Schranks füllt
+die Näpfe automatisch.
+
+Wasserholen, Waschen, Behandlung und frische Streu bleiben in allen Modi
+kostenlos. Katzen brauchen tatsächlich erreichbare, gefüllte Näpfe und
+ausgelegtes Spielzeug. Ein volles Katzenklo wird gemieden und beeinträchtigt
+die Sauberkeit der betroffenen Katzen.
+
+Pflege und Lieferungen laufen auch weiter, wenn du draußen Katzen rettest oder
+zum Laden gehst. Pause, geöffnete Kaufdialoge und Kataloge, Hauptmenü und
+geschlossene App halten beides an; es gibt **keine Offline-Vernachlässigung**
+und keine nachträgliche Simulation. Gesundheit verbessert sich durch Behandlung,
+nicht automatisch.
+
+### Schwierigkeitsgrade und Alter
+
+Der Modus wird **nur beim neuen Spiel** gewählt und bleibt für diesen Spielstand
+fest. Vorausgewählt ist **Entspannt**. Die beiden anderen Modi weisen vor dem
+Start ausdrücklich auf möglichen Katzentod hin.
+
+| Modus | Futterpaket / Liefergebühr | Lieferzeit in aktiver Spielzeit | Pflegefolgen |
+|---|---|---|---|
+| Entspannt | kostenlos / kostenlos | 30 Sekunden | Kein Katzentod, auch nicht bei Vernachlässigung. |
+| Anspruchsvoll | 12 / 5 Münzen | 45 Sekunden | Stärkerer Pflegebedarf; mögliche Todesfolge nach kritischer Schonfrist. |
+| Realistisch | 16 / 6 Münzen | 60 Sekunden | Höherer Pflegebedarf und kürzere Schonfrist. |
+
+Katzen werden als **Jungtier, erwachsene Katze oder Senior** gerettet. Diese
+Altersgruppe bleibt fest: Es gibt kein fortschreitendes Altern und keinen
+natürlichen Alterstod. Senioren verlieren in den höheren Modi bei Hunger oder
+Durst schneller Gesundheit. Die Rettungs- und Bewegungsgeschwindigkeiten bleiben
+für alle Altersgruppen unverändert.
+
+Das HUD warnt auch draußen dauerhaft vor dringendem Pflegebedarf. Sinkt durch
+anhaltenden Nahrungs- oder Wassermangel die Gesundheit auf null, beginnt in
+Anspruchsvoll eine Schonfrist von 45, in Realistisch von 30 aktiven Sekunden.
+Versorgung und Behandlung können die Katze noch retten. Ein Sterbefall wird
+namentlich angezeigt und als Verlust gespeichert, bringt aber keine
+Vermittlungsbelohnung. Danach kannst du weitere Katzen retten. Wilde Katzen und
+Katzen im Rettungskorb erhalten keine zusätzliche Sterbesimulation.
+
+Falls kein Futter mehr verfügbar ist und die Münzen nicht für ein Paket reichen,
+kannst du im Laden eine **kostenlose Notration mit sechs Portionen** abholen.
+Futter im Schrank, auf dem Arm, in Näpfen (auch eingelagerten) und in bereits
+angekommenen Paketen zählt dabei mit. Vorhandene Rationen sperren weitere Hilfe.
+
+### Einrichtung und Spielstände
 
 Beim freien Herumlaufen bleibt die untere Hinweisbox ausgeblendet. Sie erscheint
 nur für eine konkrete Aktion in Reichweite, beim Tragen, Pflegen oder Einrichten.
@@ -140,10 +193,42 @@ Gegenstände lassen sich mit ihrem Vorrat und Zustand einlagern und später
 wieder aufstellen. Ein Kauf legt einen Gegenstand ins Inventar; das
 anschließende Platzieren kostet nicht erneut.
 
-Spielstände behalten Einrichtung, Inventar, Vorräte, Verschmutzung und
-Katzenbedürfnisse. Ältere Spielstände erhalten einmalig die Grundausstattung
-und ein erfülltes Beschäftigungsbedürfnis; Katzen, Münzen und Upgrades bleiben
-erhalten.
+Spielstände behalten Einrichtung, Inventar, Hausvorrat, Ladung, jede Lieferung
+mit ihrer Restzeit, Verschmutzung, Katzenbedürfnisse, Altersgruppen, kritischen
+Pflegefortschritt, Verluste und den Modus. Ältere Spielstände werden sicher nach
+**Entspannt** übernommen; bestehende Katzen gelten als erwachsen. Katzen,
+Münzen, Upgrades und Napfinhalte bleiben erhalten.
+
+Vorratsschrank, Wasserhahn und Startfutter werden bei der Migration einmalig
+ergänzt. Neue Stationen werden nur auf freien, erreichbaren Flächen aufgestellt.
+Ist kein Platz frei, findest du sie kostenlos im Einrichtungskatalog zum
+Aufstellen. Vorhandene Möbel werden nicht ungefragt verschoben.
+
+### Lokale Analytics
+
+Spielstandversion 4 ergänzt **lokale, aggregierte Gameplay-Analytics** unter
+`state.analytics` in `user://savegame.json`. Erfasst werden Beschaffung,
+Nachfüllen, tatsächlicher Futter-/Wasserverbrauch, Einkaufskosten, Bestellungen,
+Ankünfte, Paketabholungen, Einräumen und Notrationen. Kritische Pflegephasen,
+erfolgreiches Eingreifen, Vermittlungen und Verluste helfen bei der
+Schwierigkeitsbalance; Vermittlungen und Verluste werden nach Katzenaltersgruppe
+aufgeteilt (Jungtier, erwachsen, Senior).
+
+Simulierte Spielzeit und aufsummierte Katzensekunden unter der Genesungsschwelle
+zeigen Versorgungsengpässe. Pause, Menüs und geschlossene App zählen nicht mit.
+Diese lokalen Zähler laufen auch ohne neue Eingaben weiter, solange das Spiel
+simuliert; sie sind nicht die AFK-bereinigte Spielzeit der optionalen Nutzungsanalyse.
+Abgelehnte Aktionen, wiederholte Paketabholungen und Laden duplizieren keine
+Ereignisse. Ältere Spielstände beginnen mit leeren Analytics; historische
+Ereignisse werden nicht nachträglich geschätzt.
+
+Diese Spielstandstatistik bleibt **lokal, ohne Netzwerkübertragung und ohne Geräte-
+oder Nutzerkennungen**. Sie ist unabhängig von der gesondert zustimmungspflichtigen
+[Nutzungsstatistik über PostHog](#optionale-nutzungsstatistik-posthog-eu) und wird
+nicht an diese übertragen. Die Statistik enthält auch keine Katzennamen, einzelnen
+Katzen-IDs oder Positionsverläufe. Ihre Größe bleibt durch feste Zähler begrenzt.
+Ein neues Spiel setzt diese Spielstatistik zurück; bestehende Gesamtzähler für
+gerettete und vermittelte Katzen bleiben bei der Migration erhalten.
 
 ## Steuerung
 
@@ -181,9 +266,9 @@ scenes/
 scripts/
   autoload/              GameState, SaveManager, AudioManager, SceneRouter, AnalyticsManager
   analytics/             Einwilligung, aktive Spielzeit, Offline-Puffer und HTTPS-Versand
-  data/                  Katzen, Hauszustand und Einrichtungskatalog
+  data/                  Katzen, Hauszustand, Vorräte, Lieferungen und Schwierigkeitsregeln
   rescue/                Spieler, Katzen-Verhalten, Level-Erzeugung, Gefahren
-  home/                  Haus-Simulation, Wegfindung, Einrichtung, Pflege und HUD
+  home/                  Haus-Simulation, Wegfindung, Einrichtung, Versorgung, Pflege und HUD
   ui/                    Menü, HUD, virtueller Joystick
   dev/                   Entwicklungshilfen (nicht Teil des Spiels)
 resources/               TileSet und UI-Design
@@ -261,14 +346,24 @@ pwsh tools/godot.ps1 --path . -- --start=home --demo
 # Projektkonfiguration prüfen (Eingaben, Autoloads, Szenen, Versionen)
 pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
 
-# Spiellogik testen (Retten, Pflegen, Vermitteln, Speichern, Levelaufbau)
+# Spiellogik testen (Retten, Pflege, Vorräte, Lieferungen, Modi, Spielstände, Level)
 pwsh tools/godot.ps1 --headless --path . -- --test
+
+# Nur Vorräte, Lieferungen, Pflegefolgen und deren Spielstandmigration
+pwsh tools\godot.ps1 --headless --path . -- --test --suite=supplies
 
 # Spieltest: Katze einfangen und zu Hause mit echter Steuerung versorgen
 pwsh tools/godot.ps1 --headless --path . -- --playtest
 
+# Einzelne echte Spielabläufe gezielt ausführen
+pwsh tools\godot.ps1 --headless --path . -- --playtest --suite=home
+pwsh tools\godot.ps1 --headless --path . -- --playtest --suite=shop
+
 # Durchlauf: alle Szenen und Knoepfe einmal anfassen
 pwsh tools/godot.ps1 --headless --path . -- --smoketest
+
+# Nur Hauptmenü und alle drei Moduswechsel beim Neustart
+pwsh tools\godot.ps1 --headless --path . -- --smoketest --suite=menus
 
 # Alle Skripte auf Übersetzungsfehler prüfen
 pwsh tools/lint_scripts.ps1
@@ -291,6 +386,15 @@ pwsh tools/screenshot.ps1 -Scene home -OutputPath catalog.png -Demo -HomeView fu
 
 # Vermittlungsstatus einer getragenen Katze mit Touch-Bedienung ansehen
 pwsh tools\screenshot.ps1 -Scene home -OutputPath cat.png -Demo -Touch -HomeView cat
+
+# Vorräte, mehrere Pakete und die Warnung für einen Senior ansehen
+pwsh tools\screenshot.ps1 -Scene home -OutputPath supplies.png -Demo -HomeView supplies
+pwsh tools\screenshot.ps1 -Scene home -OutputPath parcels.png -Demo -Touch -HomeView parcel
+pwsh tools\screenshot.ps1 -Scene home -OutputPath critical.png -Demo -DemoMode realistic -HomeView critical
+
+# Modusauswahl und begehbaren Laden ansehen
+pwsh tools\screenshot.ps1 -Scene menu -OutputPath modes.png -Demo -DemoMode realistic -MenuView difficulty
+pwsh tools\screenshot.ps1 -Scene rescue -OutputPath shop.png -Demo -RescueView shop
 ```
 
 Für Datenschutz- und Optionsansichten unterstützt `tools\screenshot.ps1`

@@ -9,7 +9,7 @@ signal save_failed(message: String)
 
 const SAVE_PATH := "user://savegame.json"
 const SETTINGS_PATH := "user://settings.json"
-const SAVE_VERSION := 2
+const SAVE_VERSION := 4
 
 var save_path: String = SAVE_PATH
 var settings_path: String = SETTINGS_PATH
@@ -117,11 +117,32 @@ func delete_save() -> void:
 
 ## Hebt aeltere Spielstaende auf das aktuelle Format an.
 func _migrate(state: Dictionary, from_version: int) -> Dictionary:
+	state = state.duplicate(true)
 	# Version 0 hatte noch kein Upgrade-Dictionary.
 	if from_version < 1 and not state.has("upgrade_levels"):
 		state["upgrade_levels"] = {}
 	if from_version < 2 and not state.has("home"):
 		state["home"] = HomeData.starter().to_dict()
+	if from_version < 3:
+		state["difficulty_id"] = DifficultyRules.DEFAULT
+		state["deceased_total"] = 0
+		state["last_loss_name"] = ""
+		state["supplies"] = SupplyState.new().to_dict()
+		var raw_home: Variant = state.get("home")
+		if raw_home is Dictionary:
+			var house := HomeData.from_dict(raw_home)
+			if house != null:
+				house.add_supply_fixtures()
+				state["home"] = house.to_dict()
+		for key in ["carried_cats", "home_cats"]:
+			var cats: Variant = state.get(key)
+			if cats is Array:
+				for entry: Variant in cats:
+					if entry is Dictionary:
+						entry["age_group"] = CatData.Age.ADULT
+						entry["critical_elapsed"] = 0.0
+	if from_version < 4:
+		state["analytics"] = GameplayStats.new().to_dict()
 	return state
 
 

@@ -71,6 +71,7 @@ func _test_runtime_flags() -> void:
 	for flag: String in [
 		"--test", "--playtest", "--smoketest", "--demo", "--touch-preview",
 		"--start=home", "--screenshot=shot.png", "--home-preview=cat", "--menu-preview=analytics",
+		"--rescue-preview=shop", "--demo-mode=realistic",
 	]:
 		_check(ManagerScript.is_development_run(PackedStringArray([flag])),
 			"Entwicklungsparameter %s sperrt Produktionsdaten" % flag)
@@ -333,10 +334,15 @@ func _test_consent_and_gameplay() -> void:
 	_check(manager._state["distinct_id"] == "" and manager._state["queue"].is_empty()
 		and client.requests.is_empty() and not FileAccess.file_exists(path),
 		"Vor Zustimmung keine Kennung, Messhistorie, Datei oder Requests")
+	GameState.reset("realistic")
+	_check(GameState.use_supply_station("starter_faucet").is_empty()
+		and GameState.analytics.events["water_drawn"] == 1
+		and manager._state["queue"].is_empty() and client.requests.is_empty(),
+		"Lokale Versorgungsstatistik funktioniert ohne Einwilligung und bleibt ohne Versand")
 	_check(manager.set_consent(false) and not manager.needs_consent(), "Ablehnung wird gespeichert")
 	_check(manager.set_consent(true), "Ausdrueckliche Zustimmung aktiviert die Testinstanz")
 	var original_id: String = manager._state["distinct_id"]
-	GameState.reset()
+	GameState.reset("realistic")
 	manager.game_started("new")
 	var cat := CatData.create_random()
 	_check(GameState.pick_up_cat(cat), "Outdoor-Pickup gelingt")
@@ -344,6 +350,12 @@ func _test_consent_and_gameplay() -> void:
 	GameState.lose_carried_cat()
 	GameState.pick_up_cat(cat)
 	GameState.deliver_carried_cats()
+	_check(GameState.use_supply_station("starter_pantry").is_empty()
+		and not GameState.home_simulation.pick_up(cat.id)
+		and _events(manager, "cat_picked_up", "indoor") == 0,
+		"Versorgungsladung sperrt Hauskatzen-Pickups auch bei aktiver Nutzungsanalyse")
+	_check(GameState.use_supply_station("starter_pantry").is_empty(),
+		"Nach Rueckgabe des Futters ist der Arm wieder frei")
 	for index in 2:
 		_check(GameState.home_simulation.pick_up(cat.id), "Indoor-Pickup gelingt")
 		_check(not GameState.home_simulation.pick_up(cat.id), "Fehlgeschlagener Pickup wird nicht erfasst")
@@ -353,9 +365,13 @@ func _test_consent_and_gameplay() -> void:
 		and _events(manager, "cat_rescued") == 1,
 		"Zwei Outdoor- und zwei Indoor-Pickups ergeben genau eine wirkliche Rettung")
 	GameState.deliver_carried_cats()
+	var stored_stats := GameState.analytics.to_dict()
 	SaveManager.save_game()
 	SaveManager.load_game()
 	_check(_events(manager, "cat_rescued") == 1, "Leere Abgabe und Laden retten keine Katze erneut")
+	_check(GameState.difficulty_id == "realistic" and GameState.analytics.to_dict() == stored_stats
+		and GameState.home_simulation.supplies == GameState.supplies,
+		"Laden behaelt Modus und lokale Statistik samt gemeinsamem Versorgungsvorrat")
 	GameState.home_simulation.pick_up(cat.id)
 	GameState.home_simulation.drop(GameState.home_simulation.layout.free_position())
 	_check(_events(manager, "cat_picked_up", "indoor") == 3,
@@ -363,9 +379,11 @@ func _test_consent_and_gameplay() -> void:
 	var previous_simulation := GameState.home_simulation
 	GameState.reset()
 	previous_simulation.pick_up(cat.id)
+	previous_simulation.supply_consumed.emit("food", 1)
 	_check(_events(manager, "cat_picked_up", "indoor") == 3
-		and manager._state["distinct_id"] == original_id,
-		"Alte Simulationen sind abgekoppelt; neues Spiel behaelt die Installationskennung")
+		and manager._state["distinct_id"] == original_id
+		and GameState.analytics.amounts["food_consumed_units"] == 0,
+		"Alte Pickup- und Verbrauchssignale sind abgekoppelt; die Einwilligung bleibt erhalten")
 	for index in 2:
 		GameState.pick_up_cat(CatData.create_random())
 	GameState.deliver_carried_cats()
@@ -375,9 +393,11 @@ func _test_consent_and_gameplay() -> void:
 	tree.paused = true
 	GameState.purchase_upgrade("carry_capacity")
 	GameState.buy_home_item("food")
+	GameState.buy_home_item("pantry")
+	GameState.buy_home_item("faucet")
 	tree.paused = false
-	_check(_events(manager, "upgrade_purchased") == 1 and _events(manager, "home_item_purchased") == 1,
-		"Erfolgreiche Kaeufe im pausierten Katalog gehen nicht verloren")
+	_check(_events(manager, "upgrade_purchased") == 1 and _events(manager, "home_item_purchased") == 3,
+		"Erfolgreiche Katalogkaeufe samt Vorratsschrank und Wasserhahn werden genau einmal erfasst")
 	var queue: Array = manager._state["queue"]
 	client.tick(queue, 0)
 	var sent_ids := client._in_flight.duplicate()

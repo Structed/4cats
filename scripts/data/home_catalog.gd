@@ -5,7 +5,7 @@ const TILE := 16
 const ROOM_SIZE := Vector2i(30, 20)
 const ENTRY := Vector2i(15, 18)
 const ENTRANCE_CLEARANCE := Rect2i(14, 17, 3, 2)
-const KINDS: PackedStringArray = ["food", "water", "wash", "vet", "toy", "litter"]
+const KINDS: PackedStringArray = ["food", "water", "wash", "vet", "toy", "litter", "pantry", "faucet"]
 const DEFINITIONS := {
 	"food": {"name": "Futternapf", "cost": 25, "size": Vector2i(2, 2), "capacity": 12},
 	"water": {"name": "Wassernapf", "cost": 25, "size": Vector2i(2, 2), "capacity": 16},
@@ -13,10 +13,13 @@ const DEFINITIONS := {
 	"vet": {"name": "Behandlungsstation", "cost": 60, "size": Vector2i(2, 2), "capacity": 0},
 	"toy": {"name": "Spielball", "cost": 20, "size": Vector2i(1, 1), "capacity": 0},
 	"litter": {"name": "Katzenklo", "cost": 30, "size": Vector2i(2, 2), "capacity": 6},
+	"pantry": {"name": "Vorratsschrank", "cost": 0, "size": Vector2i(2, 2), "capacity": 0},
+	"faucet": {"name": "Wasserhahn", "cost": 0, "size": Vector2i(2, 2), "capacity": 0},
 }
 const START_CELLS: Array[Vector2i] = [
 	Vector2i(3, 3), Vector2i(7, 3), Vector2i(12, 3),
 	Vector2i(18, 3), Vector2i(7, 12), Vector2i(24, 3),
+	Vector2i(12, 12), Vector2i(18, 12),
 ]
 
 static func title(kind: String) -> String:

@@ -2,6 +2,7 @@ class_name HomeSimulation
 extends RefCounted
 
 signal care_finished(cat_id: String, kind: String)
+signal supply_consumed(kind: String, amount: int)
 signal cat_picked_up(cat_id: String)
 
 const WALK_SPEED := 22.0
@@ -14,14 +15,16 @@ const TASK_NEEDS := {"food": "hunger", "water": "thirst", "toy": "enrichment"}
 
 var data: HomeData
 var layout: HomeLayout
+var supplies: SupplyState
 var held_cat_id: String = ""
 var _cats: Array[CatData]
 var _reservations: Dictionary = {}
 var _wander_sequence: int = 0
 
-func _init(home: HomeData, cats: Array[CatData]) -> void:
+func _init(home: HomeData, cats: Array[CatData], stock: SupplyState = null) -> void:
 	data = home
 	_cats = cats
+	supplies = stock
 	layout = HomeLayout.new(home)
 	sync_cats()
 
@@ -75,6 +78,8 @@ func rebuild_layout() -> void:
 
 func pick_up(id: String) -> bool:
 	if not held_cat_id.is_empty() or not data.cats.has(id):
+		return false
+	if supplies != null and not supplies.cargo_kind.is_empty():
 		return false
 	_release_reservation(id)
 	var state: HomeCatState = data.cats[id]
@@ -228,10 +233,12 @@ func _use(cat: CatData, state: HomeCatState, delta: float) -> void:
 		"food":
 			if item.stock > 0:
 				item.stock -= 1
+				supply_consumed.emit("food", 1)
 				cat.hunger = minf(CatData.NEED_MAX, cat.hunger + 45.0)
 		"water":
 			if item.stock > 0:
 				item.stock -= 1
+				supply_consumed.emit("water", 1)
 				cat.thirst = minf(CatData.NEED_MAX, cat.thirst + 45.0)
 		"toy":
 			cat.enrichment = CatData.NEED_MAX

@@ -45,8 +45,17 @@ var home_cell: Vector2i = Vector2i.ZERO
 ## Halbe Kantenlaenge der freigehaltenen Flaeche um die Heimzone.
 const HOME_CLEARANCE := 3
 
+const SHOP_SIZE := Vector2i(7, 7)
+
+## Bedienpunkt vor der Theke, offene Eingangskachel und Gebaeudegrundriss.
+var shop_cell: Vector2i = Vector2i.ZERO
+var shop_entry: Vector2i = Vector2i.ZERO
+var shop_area: Rect2i = Rect2i()
+var shop_counter: Rect2i = Rect2i()
+
 var _blocked: Dictionary = {}
 var _reserved: Dictionary = {}
+var _spawn_cells: Array[Vector2i] = []
 
 
 func _init(map_width: int = 60, map_height: int = 44, seed_value: int = 0) -> void:
@@ -68,10 +77,13 @@ func generate(ground: TileMapLayer, objects: TileMapLayer) -> void:
 	road_centers.clear()
 	_blocked.clear()
 	_reserved.clear()
+	_spawn_cells.clear()
 
 	_fill_grass(ground)
 	_carve_roads(ground)
 	_reserve_home_area(ground)
+	_reserve_shop_area(ground)
+	_draw_shop(ground, objects)
 	_place_buildings(ground, objects)
 	_scatter_trees(objects)
 	_collect_walkable()
@@ -94,6 +106,53 @@ func _reserve_home_area(ground: TileMapLayer) -> void:
 			_reserved[cell] = true
 			# Ein gepflasterter Vorplatz macht die Zone auch optisch erkennbar.
 			ground.set_cell(cell, UrbanTiles.SOURCE, UrbanTiles.CONCRETE)
+
+
+func _reserve_shop_area(ground: TileMapLayer) -> void:
+	# Derselbe Buergersteig wie das Zuhause, aber im noerdlichen Abschnitt.
+	# Die kleinste vorgesehene Karte (22 x 24) laesst die ganze Heimzone frei.
+	shop_area = Rect2i(Vector2i(home_cell.x - 3, 2), SHOP_SIZE)
+	shop_entry = Vector2i(home_cell.x, shop_area.end.y - 1)
+	shop_counter = Rect2i(shop_area.position + Vector2i(1, 1), Vector2i(5, 1))
+	shop_cell = Vector2i(home_cell.x, shop_counter.end.y)
+	for y in range(shop_area.position.y - 1, shop_area.end.y + 1):
+		for x in range(shop_area.position.x - 1, shop_area.end.x + 1):
+			_reserve_path_cell(ground, Vector2i(x, y))
+
+	# Drei Kacheln breit: auch mit der echten Spielerform bleibt der Weg frei.
+	for y in range(shop_entry.y + 1, home_cell.y + 1):
+		for x in range(home_cell.x - 1, home_cell.x + 2):
+			_reserve_path_cell(ground, Vector2i(x, y))
+	if not road_centers.is_empty():
+		var sidewalk_x: int = road_centers[0] - ROAD_WIDTH / 2 - SIDEWALK_WIDTH
+		for y in range(shop_entry.y + 1, shop_entry.y + 3):
+			for x in range(home_cell.x - 1, sidewalk_x + 1):
+				_reserve_path_cell(ground, Vector2i(x, y))
+
+
+func _reserve_path_cell(ground: TileMapLayer, cell: Vector2i) -> void:
+	if not _in_bounds(cell):
+		return
+	_reserved[cell] = true
+	ground.set_cell(cell, UrbanTiles.SOURCE, UrbanTiles.CONCRETE)
+
+
+func _draw_shop(ground: TileMapLayer, objects: TileMapLayer) -> void:
+	for y in range(shop_area.position.y, shop_area.end.y):
+		for x in range(shop_area.position.x, shop_area.end.x):
+			var cell := Vector2i(x, y)
+			ground.set_cell(cell, UrbanTiles.SOURCE, UrbanTiles.PAVEMENT)
+			var top: bool = y == shop_area.position.y
+			var side: bool = x == shop_area.position.x or x == shop_area.end.x - 1
+			var front: bool = y == shop_entry.y and absi(x - shop_entry.x) > 1
+			if not top and not side and not front and not shop_counter.has_point(cell):
+				continue
+			var column: int = -1 if x == shop_area.position.x else (
+				1 if x == shop_area.end.x - 1 else 0)
+			var row: int = -1 if top else (1 if front or shop_counter.has_point(cell) else 0)
+			objects.set_cell(cell, UrbanTiles.SOURCE,
+				UrbanTiles.facade_tile(UrbanTiles.FACADE_ORANGE, column, row))
+			_blocked[cell] = true
 
 
 func _fill_grass(ground: TileMapLayer) -> void:
@@ -218,7 +277,7 @@ func _scatter_trees(objects: TileMapLayer) -> void:
 
 
 func _collect_walkable() -> void:
-	var road_lookup := {}
+	var road_lookup: Dictionary = {}
 	for cell in road_tiles:
 		road_lookup[cell] = true
 	for y in range(1, height - 1):
@@ -227,6 +286,8 @@ func _collect_walkable() -> void:
 			if _blocked.has(cell) or road_lookup.has(cell):
 				continue
 			walkable.append(cell)
+			if not _reserved.has(cell):
+				_spawn_cells.append(cell)
 
 
 func _set_ground(ground: TileMapLayer, x: int, y: int, tile: Vector2i) -> void:
@@ -247,10 +308,15 @@ func _is_road(cell: Vector2i) -> bool:
 	return false
 
 
-## Ob auf dieser Kachel etwas Festes steht (Haus oder Baum), das den Weg
+## Ob auf dieser Kachel etwas Festes steht (Haus, Laden oder Baum), das den Weg
 ## versperrt. Genutzt von der Wegfindung des Spieltests.
 func is_blocked(cell: Vector2i) -> bool:
 	return _blocked.has(cell)
+
+
+## Freie Laufwege bleiben begehbar, sind aber keine zufaelligen Spawnplaetze.
+func is_spawn_reserved(cell: Vector2i) -> bool:
+	return _reserved.has(cell)
 
 
 # --- Hilfen fuer die Level-Szene ---------------------------------------------
@@ -271,12 +337,12 @@ func world_size() -> Vector2:
 
 ## Liefert eine zufaellige begehbare Kachel mit Mindestabstand zu `away_from`.
 func random_walkable(away_from: Vector2 = Vector2.INF, min_distance: float = 0.0) -> Vector2i:
-	if walkable.is_empty():
+	if _spawn_cells.is_empty():
 		return Vector2i(width / 2, height / 2)
 	for attempt in 40:
-		var cell: Vector2i = walkable[rng.randi() % walkable.size()]
+		var cell: Vector2i = _spawn_cells[rng.randi() % _spawn_cells.size()]
 		if away_from == Vector2.INF:
 			return cell
 		if cell_to_world(cell).distance_to(away_from) >= min_distance:
 			return cell
-	return walkable[rng.randi() % walkable.size()]
+	return _spawn_cells[rng.randi() % _spawn_cells.size()]

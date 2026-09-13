@@ -27,6 +27,9 @@ const DOG_COUNT := 3
 
 var _generator: LevelGenerator
 var _home_cell: Vector2i
+var _shop: FoodShop
+var _interact_consumed: bool = false
+var _leaving: bool = false
 
 
 func _ready() -> void:
@@ -38,6 +41,7 @@ func _ready() -> void:
 
 	_setup_home_zone()
 	_place_player()
+	_setup_shop()
 	_setup_camera()
 	_setup_home_navigation()
 	_spawn_cats()
@@ -51,18 +55,40 @@ func _ready() -> void:
 	_hud.call("set_hint", "Geh zu einer Katze und warte kurz – nur Rennen verschreckt sie.")
 
 
+func _process(_delta: float) -> void:
+	if _leaving:
+		return
+	var at_counter: bool = _shop.can_interact(_player)
+	_shop.set_highlighted(at_counter)
+	_touch_controls.call("set_action_label", "Einkaufen" if at_counter else "Katze aufheben")
+	_hud.call("set_shop_reachable", at_counter)
+
+
+func _physics_process(_delta: float) -> void:
+	if not Input.is_action_pressed("interact"):
+		_interact_consumed = false
+	elif Input.is_action_just_pressed("interact") and get_viewport().gui_get_focus_owner() == null:
+		_try_pick_up()
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact"):
+	if event.is_action_pressed("interact") and not event.is_echo():
 		_try_pick_up()
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("pause"):
-		_hud.call("toggle_pause")
-		get_viewport().set_input_as_handled()
+	elif event.is_action_released("interact"):
+		_interact_consumed = false
 
 
 ## Wird auch vom Aktionsknopf der Touch-Steuerung aufgerufen.
 func _try_pick_up() -> void:
-	var reachable := _player.cats_in_reach()
+	if _leaving or get_tree().paused or bool(SceneRouter.get("_busy")) or _interact_consumed:
+		return
+	# Ereignis, InputMap-Abfrage und Touch-Signal gehoeren zu derselben Aktion.
+	_interact_consumed = true
+	if _shop.can_interact(_player):
+		_hud.call("open_shop")
+		return
+	var reachable: Array[Cat] = _player.cats_in_reach()
 	if reachable.is_empty():
 		return
 	if not GameState.can_carry_more():
@@ -83,6 +109,17 @@ func _place_player() -> void:
 	_player.global_position = LevelGenerator.cell_to_world(_home_cell + Vector2i(0, 2))
 
 
+func _setup_shop() -> void:
+	_shop = FoodShop.new()
+	_shop.name = "FoodShop"
+	_shop.configure(_generator)
+	add_child(_shop)
+	var cargo := SupplyCargoActor.new()
+	cargo.name = "SupplyCargo"
+	_player.add_child(cargo)
+	_hud.call("set_shop_context", _player, _shop, _touch_controls)
+
+
 func _setup_camera() -> void:
 	var world := _generator.world_size()
 	_camera.limit_left = 0
@@ -94,6 +131,7 @@ func _setup_camera() -> void:
 func _setup_home_navigation() -> void:
 	var obstacles: Array[Control] = [
 		$HomeZone/Label,
+		_shop.sign_control(),
 		$TouchControls/Root/Joystick,
 		$TouchControls/Root/ActionButton,
 		$TouchControls/Root/SprintButton,
@@ -144,7 +182,7 @@ func _spawn_dogs() -> void:
 # --- Ereignisse --------------------------------------------------------------
 
 func _on_home_zone_entered(body: Node2D) -> void:
-	if body is not Player:
+	if body is not Player or _leaving:
 		return
 	var delivered := GameState.deliver_carried_cats()
 	if delivered <= 0:
@@ -175,7 +213,15 @@ func _spawn_escaped_cat(data: CatData, origin: Vector2) -> void:
 	cat.scatter_from(origin)
 
 
-## Wird vom HUD-Knopf „Nach Hause“ genutzt.
+## Wird vom HUD-Knopf "Nach Hause" genutzt.
 func return_home() -> void:
 	SaveManager.save_game()
 	SceneRouter.goto_home()
+
+
+func prepare_to_leave() -> void:
+	_leaving = true
+	GameState.simulation_active = false
+	_player.velocity = Vector2.ZERO
+	_player.set_physics_process(false)
+	_hud.call("prepare_to_leave")

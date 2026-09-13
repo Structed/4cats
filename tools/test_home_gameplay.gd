@@ -36,7 +36,7 @@ func _test_layout() -> void:
 	print("--- Haus: Einrichtung und Inventar ---")
 	GameState.reset()
 	var layout := GameState.home_simulation.layout
-	_check(GameState.home.items.size() == 6 and layout.save_error().is_empty(),
+	_check(GameState.home.items.size() == HomeCatalog.KINDS.size() and layout.save_error().is_empty(),
 		"Das kostenlose Haus ist vollstaendig und erreichbar")
 	_check(GameState.buy_home_item("toy") == null, "Zusaetzliche Einrichtung braucht Muenzen")
 	GameState.add_coins(100)
@@ -66,7 +66,7 @@ func _test_layout() -> void:
 		"Einlagern erhaelt den Vorrat")
 	_check(GameState.place_home_item(food.id, HomeCatalog.START_CELLS[0], 0, []).is_empty(),
 		"Eingelagerte Gegenstaende lassen sich wieder aufstellen")
-	_check(GameState.home.items.size() == 7, "Versetzen und Einlagern duplizieren nichts")
+	_check(GameState.home.items.size() == HomeCatalog.KINDS.size() + 1, "Versetzen und Einlagern duplizieren nichts")
 
 func _test_autonomous_care() -> void:
 	print("--- Haus: autonome Versorgung mehrerer Katzen ---")
@@ -215,7 +215,7 @@ func _test_saves() -> void:
 	_check(SaveManager.load_game(), "Hausspielstand wird geladen")
 	_check(GameState.coins == coins and GameState.upgrade_level("comfort") == 1,
 		"Muenzen und Upgrades bleiben erhalten")
-	_check(GameState.home.items.size() == 8 and GameState.home.item_by_id(toy_id).turns == 3,
+	_check(GameState.home.items.size() == HomeCatalog.KINDS.size() + 2 and GameState.home.item_by_id(toy_id).turns == 3,
 		"Einrichtung, Inventar und Drehung bleiben erhalten")
 	_check(GameState.home.item_by_id("starter_food").stock == 7
 			and GameState.home.item_by_id("starter_water").stock == 11
@@ -240,11 +240,11 @@ func _test_saves() -> void:
 		GameState.reset()
 		_check(SaveManager.load_game(), "Spielstand Version %d wird migriert" % version)
 		_check(GameState.coins == coins and GameState.home_cats.size() == 1
-				and GameState.home_cats[0].enrichment == 100 and GameState.home.items.size() == 6,
+				and GameState.home_cats[0].enrichment == 100 and GameState.home.items.size() == HomeCatalog.KINDS.size(),
 			"Migration erhaelt Katzen/Muenzen und liefert einmalig die Grundausstattung")
 	SaveManager.save_game()
 	SaveManager.load_game()
-	_check(GameState.home.items.size() == 6, "Erneutes Laden schenkt keine weitere Ausstattung")
+	_check(GameState.home.items.size() == HomeCatalog.KINDS.size(), "Erneutes Laden schenkt keine weitere Ausstattung")
 	var snapshot := JSON.stringify(GameState.to_dict())
 	var broken := GameState.to_dict()
 	var home: Dictionary = broken["home"]
