@@ -66,6 +66,7 @@ func set_home_navigation(
 func toggle_pause() -> void:
 	var paused := not get_tree().paused
 	get_tree().paused = paused
+	AnalyticsManager.player_activity()
 	_set_pause_visible(paused)
 	AudioManager.play_sfx("ui_click")
 

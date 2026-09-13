@@ -32,7 +32,10 @@ param(
     [switch]$Touch,
 
     [ValidateSet('play', 'furnish', 'placement', 'cat')]
-    [string]$HomeView = 'play'
+    [string]$HomeView = 'play',
+
+    [ValidateSet('default', 'options', 'analytics')]
+    [string]$MenuView = 'default'
 )
 
 Set-StrictMode -Version Latest
@@ -58,6 +61,10 @@ $arguments = @(
 )
 if ($Demo) { $arguments += '--demo' }
 if ($Touch) { $arguments += '--touch-preview' }
+if ($MenuView -ne 'default') {
+    if ($Scene -ne 'menu') { throw 'MenuView ist nur fuer das Hauptmenue verfuegbar.' }
+    $arguments += "--menu-preview=$MenuView"
+}
 if ($HomeView -ne 'play') {
     if ($Scene -ne 'home') { throw 'HomeView ist nur fuer die Hausszene verfuegbar.' }
     $arguments += "--home-preview=$HomeView"

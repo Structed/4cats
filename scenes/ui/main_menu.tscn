@@ -118,29 +118,34 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -140.0
-offset_top = -120.0
-offset_right = 140.0
-offset_bottom = 120.0
+offset_left = -175.0
+offset_top = -166.0
+offset_right = 175.0
+offset_bottom = 166.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Box" type="VBoxContainer" parent="OptionsPanel"]
+[node name="Scroll" type="ScrollContainer" parent="OptionsPanel"]
 layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Box" type="VBoxContainer" parent="OptionsPanel/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="Title" type="Label" parent="OptionsPanel/Box"]
+[node name="Title" type="Label" parent="OptionsPanel/Scroll/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 17
 text = "Optionen"
 horizontal_alignment = 1
 
-[node name="MasterLabel" type="Label" parent="OptionsPanel/Box"]
+[node name="MasterLabel" type="Label" parent="OptionsPanel/Scroll/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "Gesamtlautstärke"
 
-[node name="MasterSlider" type="HSlider" parent="OptionsPanel/Box"]
+[node name="MasterSlider" type="HSlider" parent="OptionsPanel/Scroll/Box"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
@@ -148,12 +153,12 @@ max_value = 1.0
 step = 0.05
 value = 1.0
 
-[node name="SfxLabel" type="Label" parent="OptionsPanel/Box"]
+[node name="SfxLabel" type="Label" parent="OptionsPanel/Scroll/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "Geräusche"
 
-[node name="SfxSlider" type="HSlider" parent="OptionsPanel/Box"]
+[node name="SfxSlider" type="HSlider" parent="OptionsPanel/Scroll/Box"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
@@ -161,12 +166,12 @@ max_value = 1.0
 step = 0.05
 value = 1.0
 
-[node name="MusicLabel" type="Label" parent="OptionsPanel/Box"]
+[node name="MusicLabel" type="Label" parent="OptionsPanel/Scroll/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "Musik"
 
-[node name="MusicSlider" type="HSlider" parent="OptionsPanel/Box"]
+[node name="MusicSlider" type="HSlider" parent="OptionsPanel/Scroll/Box"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
@@ -174,13 +179,13 @@ max_value = 1.0
 step = 0.05
 value = 0.7
 
-[node name="TouchCheck" type="CheckButton" parent="OptionsPanel/Box"]
+[node name="TouchCheck" type="CheckButton" parent="OptionsPanel/Scroll/Box"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "Touch-Steuerung immer zeigen"
 
-[node name="OptionsCloseButton" type="Button" parent="OptionsPanel/Box"]
+[node name="OptionsCloseButton" type="Button" parent="OptionsPanel/Scroll/Box"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Schließen"

@@ -20,6 +20,13 @@ GameState="*res://scripts/autoload/game_state.gd"
 SaveManager="*res://scripts/autoload/save_manager.gd"
 AudioManager="*res://scripts/autoload/audio_manager.gd"
 SceneRouter="*res://scripts/autoload/scene_router.gd"
+AnalyticsManager="*res://scripts/autoload/analytics_manager.gd"
+
+[analytics]
+
+enabled=false
+project_token=""
+privacy_contact=""
 
 [display]
 

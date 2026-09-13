@@ -7,9 +7,11 @@ signal coins_changed(amount: int)
 signal carried_changed(carried: int, capacity: int)
 signal home_cats_changed()
 signal cat_rescued(cat: CatData)
+signal cat_picked_up(cat: CatData, location: String)
 signal cat_adopted(cat: CatData, reward: int)
 signal upgrade_purchased(upgrade_id: String, level: int)
 signal home_layout_changed()
+signal home_item_purchased(kind: String, price: int)
 
 ## Muenzen pro vermittelter Katze.
 const ADOPTION_REWARD := 25
@@ -84,7 +86,7 @@ func reset() -> void:
 	carried_cats.clear()
 	home_cats.clear()
 	home = HomeData.starter()
-	home_simulation = HomeSimulation.new(home, home_cats)
+	_create_home_simulation()
 	simulation_active = false
 	upgrade_levels.clear()
 	for key: String in UPGRADES:
@@ -112,7 +114,7 @@ func pick_up_cat(cat: CatData) -> bool:
 	cat.state = CatData.State.CARRIED
 	carried_cats.append(cat)
 	rescued_total += 1
-	cat_rescued.emit(cat)
+	cat_picked_up.emit(cat, "outdoor")
 	carried_changed.emit(carried_cats.size(), carry_capacity())
 	return true
 
@@ -120,6 +122,7 @@ func pick_up_cat(cat: CatData) -> bool:
 ## Legt alle getragenen Katzen zu Hause ab.
 func deliver_carried_cats() -> int:
 	var delivered := carried_cats.size()
+	var rescued := carried_cats.duplicate()
 	for cat in carried_cats:
 		cat.state = CatData.State.AT_HOME
 		home_cats.append(cat)
@@ -127,6 +130,8 @@ func deliver_carried_cats() -> int:
 	home_simulation.sync_cats()
 	if delivered > 0:
 		home_cats_changed.emit()
+		for cat: CatData in rescued:
+			cat_rescued.emit(cat)
 	carried_changed.emit(0, carry_capacity())
 	return delivered
 
@@ -265,8 +270,10 @@ func buy_home_item(kind: String) -> HomeItemData:
 	item.kind = kind
 	item.placed = false
 	home.items.append(item)
-	add_coins(-HomeCatalog.price(kind))
+	var price := HomeCatalog.price(kind)
+	add_coins(-price)
 	home_layout_changed.emit()
+	home_item_purchased.emit(kind, price)
 	return item
 
 
@@ -345,7 +352,7 @@ func from_dict(data: Dictionary) -> bool:
 		if entry is Dictionary:
 			home_cats.append(CatData.from_dict(entry))
 	home = loaded_home
-	home_simulation = HomeSimulation.new(home, home_cats)
+	_create_home_simulation()
 
 	# Unbekannte Upgrade-Ids aus alten Staenden werden verworfen.
 	var stored: Dictionary = data.get("upgrade_levels", {})
@@ -358,3 +365,18 @@ func from_dict(data: Dictionary) -> bool:
 	home_layout_changed.emit()
 	carried_changed.emit(carried_cats.size(), carry_capacity())
 	return true
+
+
+func _create_home_simulation() -> void:
+	if home_simulation != null and home_simulation.cat_picked_up.is_connected(_on_home_cat_picked_up):
+		home_simulation.cat_picked_up.disconnect(_on_home_cat_picked_up)
+	home_simulation = HomeSimulation.new(home, home_cats)
+	home_simulation.cat_picked_up.connect(_on_home_cat_picked_up)
+
+
+func _on_home_cat_picked_up(cat_id: String) -> void:
+	var cat := home_simulation.cat_by_id(cat_id)
+	if cat == null:
+		push_error("Aufgehobene Hauskatze fehlt in der Simulation.")
+		return
+	cat_picked_up.emit(cat, "indoor")

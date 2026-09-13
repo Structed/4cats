@@ -50,7 +50,11 @@ func _apply_preview() -> void:
 			touch.set("_forced", true)
 			touch.call("_apply_visibility")
 	for argument in OS.get_cmdline_user_args():
-		if argument == "--home-preview=furnish" and scene.has_method("_open_modal"):
+		if argument == "--menu-preview=options" and scene.has_method("_on_options_pressed"):
+			scene.call("_on_options_pressed")
+		elif argument == "--menu-preview=analytics" and scene.has_method("_show_analytics"):
+			scene.call("_show_analytics")
+		elif argument == "--home-preview=furnish" and scene.has_method("_open_modal"):
 			scene.call("_open_modal", "furnish")
 		elif argument == "--home-preview=placement" and scene.has_method("start_placement"):
 			scene.call("start_placement", "starter_toy")

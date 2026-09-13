@@ -3,6 +3,9 @@ extends Control
 
 const TOUCH_SETTING := "force_touch_controls"
 
+var _analytics_button: Button
+var _analytics_dialog: AnalyticsConsent
+
 @onready var _continue_button: Button = %ContinueButton
 @onready var _new_game_button: Button = %NewGameButton
 @onready var _options_button: Button = %OptionsButton
@@ -46,12 +49,16 @@ func _ready() -> void:
 	_sfx_slider.value_changed.connect(_on_sfx_changed)
 	_music_slider.value_changed.connect(_on_music_changed)
 	_touch_check.toggled.connect(_on_touch_toggled)
+	_build_analytics_ui()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("pause"):
 		return
-	if _confirm_panel.visible:
+	if _analytics_dialog.visible:
+		_analytics_dialog.dismiss()
+		get_viewport().set_input_as_handled()
+	elif _confirm_panel.visible:
 		_on_confirm_no()
 		get_viewport().set_input_as_handled()
 	elif _options_panel.visible:
@@ -88,7 +95,8 @@ func _store(key: String, value: Variant) -> void:
 
 func _on_continue_pressed() -> void:
 	AudioManager.play_sfx("ui_click")
-	SaveManager.load_game()
+	if SaveManager.load_game():
+		AnalyticsManager.game_started("continue")
 	SceneRouter.goto_home()
 
 
@@ -103,6 +111,7 @@ func _on_new_game_pressed() -> void:
 func _start_new_game() -> void:
 	GameState.reset()
 	SaveManager.save_game()
+	AnalyticsManager.game_started("new")
 	SceneRouter.goto_home()
 
 
@@ -151,3 +160,28 @@ func _on_music_changed(value: float) -> void:
 
 func _on_touch_toggled(pressed: bool) -> void:
 	_store(TOUCH_SETTING, pressed)
+
+
+func _build_analytics_ui() -> void:
+	_analytics_button = Button.new()
+	_analytics_button.name = "AnalyticsButton"
+	_analytics_button.add_theme_font_size_override("font_size", 12)
+	var box := _options_close.get_parent()
+	box.add_child(_analytics_button)
+	box.move_child(_analytics_button, _options_close.get_index())
+	_analytics_dialog = AnalyticsConsent.new()
+	_analytics_dialog.name = "AnalyticsDialog"
+	add_child(_analytics_dialog)
+	_analytics_button.pressed.connect(_show_analytics)
+	AnalyticsManager.changed.connect(_refresh_analytics)
+	_refresh_analytics()
+	if AnalyticsManager.needs_consent():
+		_show_analytics()
+
+
+func _refresh_analytics() -> void:
+	_analytics_button.text = "Nutzungsanalyse: " + ("an" if AnalyticsManager.has_consent() else "aus")
+
+
+func _show_analytics() -> void:
+	_analytics_dialog.present(AnalyticsManager)

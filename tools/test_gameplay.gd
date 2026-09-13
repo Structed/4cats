@@ -43,6 +43,16 @@ func run_all() -> void:
 	var home_suite: GDScript = load("res://tools/test_home_gameplay.gd")
 	var home_tests: RefCounted = home_suite.new()
 	_failures.append_array(home_tests.run(get_tree()))
+	var analytics_suite: GDScript = load("res://tools/test_analytics.gd")
+	if analytics_suite == null or not analytics_suite.can_instantiate():
+		_failures.append("Analytics-Tests lassen sich nicht laden.")
+	else:
+		var analytics_tests: RefCounted = analytics_suite.new()
+		var result: Variant = analytics_tests.run(get_tree())
+		if result is PackedStringArray:
+			_failures.append_array(result)
+		else:
+			_failures.append("Analytics-Testlauf wurde mit einem Skriptfehler abgebrochen.")
 
 	print("")
 	if _failures.is_empty():

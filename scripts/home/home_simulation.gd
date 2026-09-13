@@ -2,6 +2,7 @@ class_name HomeSimulation
 extends RefCounted
 
 signal care_finished(cat_id: String, kind: String)
+signal cat_picked_up(cat_id: String)
 
 const WALK_SPEED := 22.0
 const CARE_SECONDS := 2.2
@@ -80,6 +81,7 @@ func pick_up(id: String) -> bool:
 	state.clear_task()
 	state.task = "held"
 	held_cat_id = id
+	cat_picked_up.emit(id)
 	return true
 
 func drop(position: Vector2) -> bool:

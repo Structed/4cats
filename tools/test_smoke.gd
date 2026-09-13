@@ -45,6 +45,7 @@ func _check(condition: bool, description: String) -> void:
 
 func _run() -> void:
 	await _test_main_menu()
+	await _test_analytics_menu()
 	await _test_home()
 	await _test_adoption_status()
 	await _test_touch_furnishing()
@@ -272,6 +273,56 @@ func _test_main_menu() -> void:
 
 
 # --- Zuhause -----------------------------------------------------------------
+
+func _test_analytics_menu() -> void:
+	print("--- Einwilligung und Widerruf ---")
+	var menu := await _load_scene("res://scenes/ui/main_menu.tscn")
+	if menu == null:
+		return
+	var suite: GDScript = load("res://tools/test_analytics.gd")
+	if suite == null or not suite.can_instantiate():
+		_check(false, "Analytics-Testhilfe laesst sich laden")
+		menu.queue_free()
+		return
+	var path := SaveManager.save_path.get_base_dir().path_join("analytics_ui.json")
+	var service: Node = suite.make_ui_service(path)
+	var dialog: AnalyticsConsent = menu.get("_analytics_dialog")
+	var accept: Button = dialog.get("_accept")
+	var decline: Button = dialog.get("_decline")
+	var panel: PanelContainer = dialog.get("_panel")
+	var original_size := get_tree().root.size
+	for window_size in UI_WINDOW_SIZES:
+		get_tree().root.size = window_size
+		dialog.present(service)
+		await _wait(0.1)
+		var bounds := dialog.get_viewport_rect()
+		_check(dialog.visible and bounds.encloses(panel.get_global_rect())
+			and panel.get_global_rect().encloses(accept.get_global_rect())
+			and panel.get_global_rect().encloses(decline.get_global_rect()),
+			"Einwilligung und beide Knoepfe passen bei %s ins Bild" % window_size)
+		_check(not accept.disabled and accept.text == "Zustimmen" and decline.text == "Nein danke",
+			"Zustimmung und Ablehnung sind gleichwertig erreichbar")
+	get_tree().root.size = original_size
+	dialog.dismiss()
+	_check(not dialog.visible and not bool(service.call("needs_consent"))
+		and not bool(service.call("has_consent")), "Escape bei Erstabfrage speichert eine Ablehnung")
+	dialog.present(service)
+	accept.pressed.emit()
+	_check(not dialog.visible and bool(service.call("has_consent")), "Zustimmen aktiviert erst nach der Entscheidung")
+	dialog.present(service)
+	dialog.dismiss()
+	_check(bool(service.call("has_consent")), "Schliessen einer bestehenden Info widerruft nicht versehentlich")
+	dialog.present(service)
+	decline.pressed.emit()
+	_check(not dialog.visible and not bool(service.call("has_consent")), "Expliziter Widerruf schaltet die Erfassung aus")
+	_check(not AnalyticsManager.has_consent(), "Die echte Testlauf-Instanz bleibt dabei ausgeschaltet")
+	menu.queue_free()
+	await _wait(0.1)
+	service.free()
+	for file in [path, path + ".tmp"]:
+		if FileAccess.file_exists(file):
+			DirAccess.remove_absolute(file)
+
 
 func _test_home() -> void:
 	print("--- Zuhause ---")
