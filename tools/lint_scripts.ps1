@@ -37,7 +37,7 @@ $Godot = & (Join-Path $PSScriptRoot 'godot.ps1') --which
 if (-not $Godot) { throw 'Godot wurde nicht gefunden.' }
 
 # Namen, die es nur zur Laufzeit gibt. Meldungen dazu sind keine echten Fehler.
-$AutoloadNames = @('GameState', 'SaveManager', 'AudioManager', 'SceneRouter')
+$AutoloadNames = @('GameState', 'SaveManager', 'AudioManager', 'SceneRouter', 'AnalyticsManager')
 
 $files = Get-ChildItem -Path $ProjectRoot -Filter '*.gd' -Recurse -File |
     Where-Object { $_.FullName -notmatch '\\\.godot\\' } |

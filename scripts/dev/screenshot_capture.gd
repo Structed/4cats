@@ -50,7 +50,11 @@ func _apply_preview() -> void:
 			touch.set("_forced", true)
 			touch.call("_apply_visibility")
 	for argument in OS.get_cmdline_user_args():
-		if argument == "--menu-preview=difficulty" and scene.has_method("_on_new_game_pressed"):
+		if argument == "--menu-preview=options" and scene.has_method("_on_options_pressed"):
+			scene.call("_on_options_pressed")
+		elif argument == "--menu-preview=analytics" and scene.has_method("_show_analytics"):
+			scene.call("_show_analytics")
+		elif argument == "--menu-preview=difficulty" and scene.has_method("_on_new_game_pressed"):
 			scene.call("_on_new_game_pressed")
 			var choice: OptionButton = scene.get_node("%DifficultyChoice")
 			var index := DifficultyRules.IDS.find(GameState.difficulty_id)

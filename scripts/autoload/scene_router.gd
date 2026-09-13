@@ -16,6 +16,10 @@ var _fade: ColorRect
 var _busy: bool = false
 
 
+func is_transitioning() -> bool:
+	return _busy
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 128

@@ -7,11 +7,13 @@ signal coins_changed(amount: int)
 signal carried_changed(carried: int, capacity: int)
 signal home_cats_changed()
 signal cat_rescued(cat: CatData)
+signal cat_picked_up(cat: CatData, location: String)
 signal cat_adopted(cat: CatData, reward: int)
 signal upgrade_purchased(upgrade_id: String, level: int)
 signal home_layout_changed()
 signal supplies_changed()
 signal cat_died(cat: CatData)
+signal home_item_purchased(kind: String, price: int)
 
 ## Muenzen pro vermittelter Katze.
 const ADOPTION_REWARD := 25
@@ -117,7 +119,13 @@ func reset(mode: String = DifficultyRules.DEFAULT) -> void:
 
 
 func _bind_home() -> void:
+	if home_simulation != null:
+		if home_simulation.cat_picked_up.is_connected(_on_home_cat_picked_up):
+			home_simulation.cat_picked_up.disconnect(_on_home_cat_picked_up)
+		if home_simulation.supply_consumed.is_connected(_on_supply_consumed):
+			home_simulation.supply_consumed.disconnect(_on_supply_consumed)
 	home_simulation = HomeSimulation.new(home, home_cats, supplies)
+	home_simulation.cat_picked_up.connect(_on_home_cat_picked_up)
 	home_simulation.supply_consumed.connect(_on_supply_consumed)
 	supply_actions = SupplyActions.new(supplies, home, home_simulation)
 	_critical_cats.clear()
@@ -144,7 +152,7 @@ func pick_up_cat(cat: CatData) -> bool:
 	cat.state = CatData.State.CARRIED
 	carried_cats.append(cat)
 	rescued_total += 1
-	cat_rescued.emit(cat)
+	cat_picked_up.emit(cat, "outdoor")
 	carried_changed.emit(carried_cats.size(), carry_capacity())
 	return true
 
@@ -152,6 +160,7 @@ func pick_up_cat(cat: CatData) -> bool:
 ## Legt alle getragenen Katzen zu Hause ab.
 func deliver_carried_cats() -> int:
 	var delivered := carried_cats.size()
+	var rescued := carried_cats.duplicate()
 	for cat in carried_cats:
 		cat.state = CatData.State.AT_HOME
 		home_cats.append(cat)
@@ -160,6 +169,8 @@ func deliver_carried_cats() -> int:
 	if delivered > 0:
 		analytics.record("cat_delivered", delivered)
 		home_cats_changed.emit()
+		for cat: CatData in rescued:
+			cat_rescued.emit(cat)
 	carried_changed.emit(0, carry_capacity())
 	return delivered
 
@@ -478,8 +489,10 @@ func buy_home_item(kind: String) -> HomeItemData:
 	item.kind = kind
 	item.placed = false
 	home.items.append(item)
-	add_coins(-HomeCatalog.price(kind))
+	var price := HomeCatalog.price(kind)
+	add_coins(-price)
 	home_layout_changed.emit()
+	home_item_purchased.emit(kind, price)
 	return item
 
 
@@ -627,3 +640,11 @@ func from_dict(data: Dictionary) -> bool:
 	carried_changed.emit(carried_cats.size(), carry_capacity())
 	supplies_changed.emit()
 	return true
+
+
+func _on_home_cat_picked_up(cat_id: String) -> void:
+	var cat := home_simulation.cat_by_id(cat_id)
+	if cat == null:
+		push_error("Aufgehobene Hauskatze fehlt in der Simulation.")
+		return
+	cat_picked_up.emit(cat, "indoor")

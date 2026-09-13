@@ -34,7 +34,7 @@ param(
     [ValidateSet('play', 'furnish', 'placement', 'cat', 'supplies', 'parcel', 'critical')]
     [string]$HomeView = 'play',
 
-    [ValidateSet('play', 'difficulty')]
+    [ValidateSet('play', 'default', 'difficulty', 'options', 'analytics')]
     [string]$MenuView = 'play',
 
     [ValidateSet('play', 'shop')]
@@ -80,13 +80,13 @@ elseif ($DemoMode -ne 'relaxed' -or $HomeView -in @('parcel', 'critical')) {
     throw 'DemoMode und die Paket-/Risikovorschau brauchen -Demo.'
 }
 if ($Touch) { $arguments += '--touch-preview' }
+if ($MenuView -notin @('play', 'default')) {
+    if ($Scene -ne 'menu') { throw 'MenuView ist nur fuer das Hauptmenue verfuegbar.' }
+    $arguments += "--menu-preview=$MenuView"
+}
 if ($HomeView -ne 'play') {
     if ($Scene -ne 'home') { throw 'HomeView ist nur fuer die Hausszene verfuegbar.' }
     $arguments += "--home-preview=$HomeView"
-}
-if ($MenuView -ne 'play') {
-    if ($Scene -ne 'menu') { throw 'MenuView ist nur fuer das Hauptmenue verfuegbar.' }
-    $arguments += "--menu-preview=$MenuView"
 }
 if ($RescueView -ne 'play') {
     if ($Scene -ne 'rescue') { throw 'RescueView ist nur fuer die Rettungsszene verfuegbar.' }

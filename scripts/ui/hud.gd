@@ -226,6 +226,7 @@ func _open_modal(kind: String) -> void:
 	_release_controls()
 	_modal = kind
 	get_tree().paused = true
+	AnalyticsManager.player_activity()
 	_set_pause_visible(kind == "pause")
 	_shop_dim.visible = kind == "shop"
 	_shop_panel.visible = kind == "shop"
@@ -247,6 +248,7 @@ func close_shop() -> void:
 	_home_button.disabled = _home_disabled_before_modal
 	_release_controls()
 	get_tree().paused = false
+	AnalyticsManager.player_activity()
 	if not _leaving:
 		if is_instance_valid(_player):
 			_player.set_physics_process(_physics_before_modal)

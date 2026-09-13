@@ -192,7 +192,9 @@ func _notification(what: int) -> void:
 
 func _exit_tree() -> void:
 	if not _test_directory.is_empty():
-		for path in [save_path, settings_path]:
+		for path in [save_path, settings_path,
+				_test_directory.path_join("analytics.json"),
+				_test_directory.path_join("analytics.json.tmp")]:
 			if FileAccess.file_exists(path):
 				DirAccess.remove_absolute(path)
 		DirAccess.remove_absolute(_test_directory)
