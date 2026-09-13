@@ -10,6 +10,72 @@ oder mit Tastatur bedienbar.
 |---|---|
 | Streuner suchen, vorsichtig annähern, aufheben | Haus einrichten, Näpfe füllen, Katzen pflegen, Katzenklo reinigen |
 
+## Android installieren und aktuell halten
+
+Mit **Obtainium** bekommst du 4cats direkt aus unseren
+[GitHub-Releases](https://github.com/Structed/4cats/releases) und musst neue APKs
+nicht selbst suchen. Ein GitHub-Konto oder Zugriffstoken ist normalerweise
+nicht nötig.
+
+### Einmal einrichten
+
+1. **Obtainium installieren:** Lade `app-release.apk` aus den
+   [offiziellen Obtainium-Releases](https://github.com/ImranR98/Obtainium/releases/latest)
+   herunter und installiere sie. Diese APK enthält alle unterstützten
+   CPU-Architekturen. Erlaube dem Browser bei Bedarf in Android
+   **„Unbekannte Apps installieren“**.
+2. **4cats hinzufügen:** Öffne in Obtainium **„App hinzufügen“** und trage
+   `https://github.com/Structed/4cats` als **„Quell-URL der App“** ein.
+   Die Quelle wird als **GitHub** erkannt. Setze die Optionen wie unten
+   beschrieben und bestätige mit **„Hinzufügen“**. Verwende die Repository-URL,
+   keinen Link auf eine einzelne Version oder APK.
+3. **4cats installieren:** Öffne den neuen Eintrag und installiere `4cats.apk`.
+   Erlaube dafür auch **Obtainium** in Android **„Unbekannte Apps installieren“**
+   und bestätige die Installation.
+
+| Option für 4cats | Einstellung |
+|---|---|
+| Sortierverfahren | **Name**, nicht „Intelligenter Name“ oder Datum |
+| „Latest“-Tag überprüfen | **Aus** |
+| Vorabversionen einbeziehen | **Aus** |
+| Nur nachverfolgen | **Aus**, damit Obtainium APKs installieren kann |
+| Veröffentlichungsdatum als Version verwenden | **Aus** |
+| Versionserkennung deaktivieren | **Aus** – den Release-Tag als Version beibehalten |
+
+Es ist kein Regex-Umschreiben der Version nötig. Warum die Sortierung hier
+wichtig ist, steht unter [Versionierung und Obtainium](#versionierung-und-obtainium).
+
+### Updates erhalten
+
+Wähle in Obtainiums **Einstellungen** beim **„Prüfintervall für
+Hintergrundaktualisierung“** ein regelmäßiges Intervall statt **„Nie – nur
+manuell“**. Erlaube Android-Benachrichtigungen für Obtainium; optional kannst
+du **„Einmalig beim Start auf Aktualisierungen prüfen“** einschalten.
+4cats darf in seinen Zusatzoptionen nicht von Hintergrundaktualisierungen
+ausgeschlossen sein.
+
+Ab **Android 12** sind auch Updates ohne Nachfrage möglich: Aktiviere
+**„Stille Installationen im Hintergrund aktivieren“**, falls angeboten.
+Voraussetzungen sind unter anderem eine durch Obtainium installierte oder
+aktualisierte 4cats-Fassung, ein ausreichend aktuelles Ziel-API-Level der APK
+und genau eine passende APK (`4cats.apk`). Andernfalls öffnest du die
+Update-Benachrichtigung, startest das Update in Obtainium und bestätigst
+Androids Installationsdialog.
+
+**Nicht sofort oder garantiert:** Android kann Hintergrundarbeit verzögern;
+auch eine stille Installation kann scheitern. Öffne bei ausbleibenden Updates
+Obtainium und prüfe manuell auf Aktualisierungen. Kontrolliere außerdem
+WLAN-/Ladeeinschränkungen in Obtainium und Androids Akku-Einstellungen für
+Obtainium; erlaube bei Bedarf dessen Hintergrundbetrieb. Die installierte
+Version kannst du mit der Anzeige unten rechts im 4cats-Hauptmenü vergleichen.
+Details erklärt das [Obtainium-Wiki](https://wiki.obtainium.imranr.dev/app_tracking/#background-updates).
+
+**Schon manuell installiert?** Füge dieselbe Quelle hinzu und installiere das
+nächste Release-Update über Obtainium – **ohne vorherige Deinstallation**.
+Bei unseren Release-APKs bleibt der Spielstand dabei erhalten. Alte Debug-APKs
+haben jedoch eine andere Signatur: Beachte vor einem Wechsel unbedingt die
+[Warnung zum Spielstandverlust](#release-signatur-und-wiederherstellung).
+
 ## Spielablauf
 
 1. **Rausgehen**: Ein prozedural erzeugtes Viertel mit Straßen, Häusern und Bäumen.
@@ -383,20 +449,16 @@ werden. Für einen bewussten Wechsel der Versionsreihe die Basisversion in
 Android-Preset gemeinsam anpassen, ohne den Code hochzusetzen. Die nächste
 Build-Vorbereitung setzt wieder die berechnete dritte Komponente und den Code.
 
-**In Obtainium einrichten:**
+Die Schritte zum [Installieren und Aktualisieren mit Obtainium](#android-installieren-und-aktuell-halten)
+stehen oben bei der Android-Anleitung.
 
-1. `https://github.com/Structed/4cats` als App-Quelle hinzufügen.
-2. Als Sortiermethode **„Name“** wählen. Das sortiert die vollständigen Tags
-   natürlich, also `0.1.10` nach `0.1.9`, und die alten `android-pr-*`-Tags
-   vor den neuen numerischen Tags. **Nicht „Intelligenter Name“** verwenden:
-   Bei gemischten Formaten kann diese Methode die alte PR-Nummer als höhere
-   Version werten. Auch die Datumssortierung ist ungeeignet, weil ein älterer
-   Merge bei parallelen Builds erst nach einem neueren veröffentlicht werden kann.
-   Die Bevorzugung des GitHub-„Latest“-Releases ausschalten, damit die
-   Versionssortierung maßgeblich bleibt.
-3. `4cats.apk` verwenden und den **Release-Tag als Version** beibehalten.
-   Prereleases, „nur verfolgen“ und ein Veröffentlichungsdatum als
-   Versionsersatz sind nicht nötig.
+Das dort verwendete Sortierverfahren **„Name“** sortiert die vollständigen
+Tags natürlich, also `0.1.10` nach `0.1.9`, und die alten `android-pr-*`-Tags
+vor den neuen numerischen Tags. **„Intelligenter Name“** kann bei gemischten
+Formaten die alte PR-Nummer als höhere Version werten. Auch die Datumssortierung
+ist ungeeignet, weil ein älterer Merge bei parallelen Builds erst nach einem
+neueren veröffentlicht werden kann. Die ausgeschaltete Bevorzugung des
+GitHub-„Latest“-Releases sorgt dafür, dass die Versionssortierung maßgeblich bleibt.
 
 Release-Tag und APK-Versionsname stimmen direkt überein; es ist kein
 Regex-Umschreiben der Version nötig. Die bisherigen `android-pr-*`-Releases
