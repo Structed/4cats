@@ -255,6 +255,13 @@ func _test_main_menu() -> void:
 	await _wait(0.2)
 	_check(credits_panel.visible, "Credits lassen sich per Tastatur oeffnen")
 	_check(credits_dim.visible, "Credits dunkeln den Hintergrund ab")
+	var credits_text: Label = credits_panel.get_node("Box/Text")
+	_check(credits_text.text.contains("Support:\nYvonne Ebner"),
+		"Die Credits nennen Yvonne Ebner fuer den Support")
+	_check(credits_panel.get_viewport_rect().encloses(credits_panel.get_global_rect())
+		and credits_panel.get_global_rect().encloses(credits_text.get_global_rect())
+		and credits_panel.get_global_rect().encloses(credits_close.get_global_rect()),
+		"Alle Credits und der Schliessen-Knopf passen vollstaendig ins Bild")
 	_check(credits_close.has_focus(), "Credits fokussieren den Schliessen-Knopf")
 	for action in MENU_FOCUS_ACTIONS:
 		_send_ui_action(action)
