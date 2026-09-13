@@ -1,13 +1,19 @@
-## Hauptmenue mit Optionen.
+## Hauptmenue mit Optionen und Credits.
 extends Control
 
 const TOUCH_SETTING := "force_touch_controls"
 
+@onready var _menu_actions: VBoxContainer = %Center
 @onready var _continue_button: Button = %ContinueButton
 @onready var _new_game_button: Button = %NewGameButton
 @onready var _options_button: Button = %OptionsButton
 @onready var _quit_button: Button = %QuitButton
+@onready var _credits_button: Button = %CreditsButton
 @onready var _version_label: Label = %VersionLabel
+
+@onready var _credits_panel: PanelContainer = %CreditsPanel
+@onready var _credits_dim: ColorRect = %CreditsDim
+@onready var _credits_close: Button = %CreditsCloseButton
 
 @onready var _options_panel: PanelContainer = %OptionsPanel
 @onready var _options_dim: ColorRect = %OptionsDim
@@ -27,6 +33,7 @@ func _ready() -> void:
 	GameState.simulation_active = false
 	var version: String = ProjectSettings.get_setting("application/config/version")
 	_version_label.text = "Version %s" % version
+	_set_credits_visible(false)
 	_set_options_visible(false)
 	_set_confirm_visible(false)
 	_continue_button.visible = SaveManager.has_save()
@@ -37,6 +44,8 @@ func _ready() -> void:
 	_new_game_button.pressed.connect(_on_new_game_pressed)
 	_options_button.pressed.connect(_on_options_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
+	_credits_button.pressed.connect(_on_credits_pressed)
+	_credits_close.pressed.connect(_on_credits_close_pressed)
 	_options_close.pressed.connect(_on_options_close_pressed)
 	_confirm_yes.pressed.connect(_on_confirm_yes)
 	_confirm_no.pressed.connect(_on_confirm_no)
@@ -54,20 +63,42 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _confirm_panel.visible:
 		_on_confirm_no()
 		get_viewport().set_input_as_handled()
+	elif _credits_panel.visible:
+		_on_credits_close_pressed()
+		get_viewport().set_input_as_handled()
 	elif _options_panel.visible:
 		_on_options_close_pressed()
 		get_viewport().set_input_as_handled()
 
 
+## Blendet Abdunklung und Credits-Fenster gemeinsam ein oder aus.
+func _set_credits_visible(shown: bool) -> void:
+	_set_modal_visible(_credits_panel, _credits_dim, shown,
+		_credits_close if shown else _credits_button)
+
+
 ## Blendet Abdunklung und Fenster gemeinsam ein oder aus.
 func _set_options_visible(shown: bool) -> void:
-	_options_panel.visible = shown
-	_options_dim.visible = shown
+	_set_modal_visible(_options_panel, _options_dim, shown,
+		_master_slider if shown else _options_button)
 
 
 func _set_confirm_visible(shown: bool) -> void:
-	_confirm_panel.visible = shown
-	_confirm_dim.visible = shown
+	_set_modal_visible(_confirm_panel, _confirm_dim, shown,
+		_confirm_no if shown else _new_game_button)
+
+
+## Die Abdunklung allein blockiert keine Tastaturbedienung im Hintergrund.
+func _set_modal_visible(panel: PanelContainer, dim: ColorRect, shown: bool,
+		focus_target: Control) -> void:
+	var was_visible := panel.visible
+	panel.visible = shown
+	dim.visible = shown
+	var modal_visible := _credits_panel.visible or _options_panel.visible or _confirm_panel.visible
+	_menu_actions.focus_behavior_recursive = (Control.FOCUS_BEHAVIOR_DISABLED
+		if modal_visible else Control.FOCUS_BEHAVIOR_INHERITED)
+	if shown or was_visible:
+		focus_target.grab_focus()
 
 
 func _load_settings() -> void:
@@ -125,6 +156,16 @@ func _on_options_pressed() -> void:
 func _on_options_close_pressed() -> void:
 	AudioManager.play_sfx("ui_back")
 	_set_options_visible(false)
+
+
+func _on_credits_pressed() -> void:
+	AudioManager.play_sfx("ui_click")
+	_set_credits_visible(true)
+
+
+func _on_credits_close_pressed() -> void:
+	AudioManager.play_sfx("ui_back")
+	_set_credits_visible(false)
 
 
 func _on_quit_pressed() -> void:

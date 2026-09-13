@@ -174,6 +174,9 @@ pwsh tools/generate_home_assets.ps1
 ### Starten und Prüfen
 
 ```powershell
+# Nach einem frischen Checkout zuerst Ressourcen und Projektklassen importieren
+pwsh tools/godot.ps1 --headless --path . --import
+
 # Spiel starten
 pwsh tools/godot.ps1 --path .
 
@@ -216,6 +219,11 @@ pwsh tools\screenshot.ps1 -Scene home -OutputPath cat.png -Demo -Touch -HomeView
 Die Prüfungen geben bei Fehlern Exit-Code 1 zurück und laufen so auch in CI.
 Spiel-, Durchlauf- und Logiktests benutzen getrennte temporäre Spielstände
 und Einstellungen; auch `--demo` überschreibt keinen normalen Spielstand.
+
+Meldungen wie `Could not find type "CatData"` oder `Identifier "HomeData" not
+declared` beim ersten Start weisen auf den noch fehlenden Import-Cache hin.
+Den Importbefehl oben ausführen und das Spiel danach neu starten. Der Ordner
+`.godot/` wird lokal erzeugt und gehört nicht ins Repository.
 
 Die fünf Prüfungen decken unterschiedliche Fehlerklassen ab:
 
