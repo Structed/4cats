@@ -2,7 +2,9 @@
 extends Control
 
 const TOUCH_SETTING := "force_touch_controls"
+const AnalyticsService := preload("res://scripts/autoload/analytics_manager.gd")
 
+var _analytics_service: AnalyticsService = AnalyticsManager
 var _analytics_button: Button
 var _analytics_dialog: AnalyticsConsent
 
@@ -136,7 +138,7 @@ func _store(key: String, value: Variant) -> void:
 func _on_continue_pressed() -> void:
 	AudioManager.play_sfx("ui_click")
 	if SaveManager.load_game():
-		AnalyticsManager.game_started("continue")
+		_analytics_service.game_started("continue")
 	SceneRouter.goto_home()
 
 
@@ -151,7 +153,7 @@ func _on_new_game_pressed() -> void:
 func _start_new_game() -> void:
 	GameState.reset()
 	SaveManager.save_game()
-	AnalyticsManager.game_started("new")
+	_analytics_service.game_started("new")
 	SceneRouter.goto_home()
 
 
@@ -224,15 +226,15 @@ func _build_analytics_ui() -> void:
 	add_child(_analytics_dialog)
 	_analytics_dialog.visibility_changed.connect(_update_modal_focus)
 	_analytics_button.pressed.connect(_show_analytics)
-	AnalyticsManager.changed.connect(_refresh_analytics)
+	_analytics_service.changed.connect(_refresh_analytics)
 	_refresh_analytics()
-	if AnalyticsManager.needs_consent():
+	if _analytics_service.needs_consent():
 		_show_analytics()
 
 
 func _refresh_analytics() -> void:
-	_analytics_button.text = "Nutzungsanalyse: " + ("an" if AnalyticsManager.has_consent() else "aus")
+	_analytics_button.text = "Nutzungsanalyse: " + ("an" if _analytics_service.has_consent() else "aus")
 
 
 func _show_analytics() -> void:
-	_analytics_dialog.present(AnalyticsManager)
+	_analytics_dialog.present(_analytics_service)

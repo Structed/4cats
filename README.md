@@ -483,9 +483,16 @@ hat; das gilt nach jeder Änderung erneut.
 ## Optionale Nutzungsstatistik (PostHog EU)
 
 **Standardmäßig aus und nur nach Opt-in.** Ein ausdrücklich freigegebener
-Release-Build fragt im Hauptmenü nach Zustimmung. Ablehnen oder Schließen
-lässt Analytics aus; in den Optionen kann die Entscheidung später geändert
-oder widerrufen werden. Ohne Einwilligung gibt es weder Messung noch
+Release-Build zeigt beim ersten Start automatisch eine kurze Abfrage im
+Hauptmenü. Sie erklärt in einfachen Worten Zweck, Datenempfänger und
+Wiedererkennung der Installation. „Ja, erlauben“ und „Nein danke“ sind
+gleichwertig erreichbar; „Mehr zum Datenschutz“ öffnet vor der Entscheidung
+die vollständigen Angaben inklusive Betreiberkontakt.
+
+Sowohl Zustimmung als auch Ablehnung werden gespeichert: Bei späteren Starts
+wird nicht erneut gefragt. Ablehnen oder Schließen lässt Analytics aus; unter
+**Optionen > Nutzungsanalyse** kann die Entscheidung später geändert oder
+widerrufen werden. Ohne Einwilligung gibt es weder Messung noch
 Installationskennung, Ereignispuffer oder Netzwerkanfrage. Frühere Spielzeit
 und bereits erreichter Fortschritt werden nicht nachträglich erfasst.
 Spielstände und die Analytics-Entscheidung sind getrennt; „Neues Spiel“
@@ -520,6 +527,8 @@ kein natives SDK und kein .NET. Der einzige Ingestion-Endpunkt ist fest
 Editor-, Debug-, Headless-, Test-, Playtest-, Smoketest-, Demo- und Screenshot-
 Läufe sowie direkte `--start=`- und Touch-Vorschauen sind unabhängig von
 eingebetteten Werten und gespeicherter Zustimmung produktionsgesperrt.
+Sie zeigen deshalb keine automatische Freigabeabfrage; die Informationen
+bleiben über die Optionen zugänglich.
 Feature Flags, Replay und Crash-Reporting gehören nicht
 zu dieser Integration.
 
