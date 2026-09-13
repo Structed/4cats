@@ -62,6 +62,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Analytics-Exportkonfiguration testen
+        run: pwsh tools/test_analytics_config.ps1
+
       - name: Build-Version vorbereiten
         id: version
         run: |
@@ -128,6 +131,16 @@ jobs:
             $stream.Dispose()
             [Array]::Clear($bytes, 0, $bytes.Length)
           }
+
+      - name: Analytics fuer Export konfigurieren
+        env:
+          ANALYTICS_ENABLED: ${{ vars.ANALYTICS_ENABLED }}
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
+          ANALYTICS_PRIVACY_CONTACT: ${{ secrets.ANALYTICS_PRIVACY_CONTACT }}
+        run: |
+          $enabled = $env:ANALYTICS_ENABLED -ceq 'true'
+          & ./tools/configure_analytics.ps1 -Enabled:$enabled `
+            -ProjectToken $env:POSTHOG_PROJECT_TOKEN -PrivacyContact $env:ANALYTICS_PRIVACY_CONTACT
 
       - name: Release-APK bauen und prüfen
         env:

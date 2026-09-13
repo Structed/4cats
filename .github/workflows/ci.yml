@@ -23,6 +23,9 @@ jobs:
       - name: Versionierung testen
         run: pwsh tools/test_versioning.ps1
 
+      - name: Analytics-Exportkonfiguration testen
+        run: pwsh tools/test_analytics_config.ps1
+
       - name: Build-Version vorbereiten
         run: pwsh tools/set_build_version.ps1
 
@@ -48,6 +51,21 @@ jobs:
 
       - name: Durchlauf durch alle Szenen
         run: godot --headless --path . -- --smoketest
+
+      - name: Analytics fuer Export konfigurieren
+        shell: pwsh
+        env:
+          ANALYTICS_ENABLED: ${{ vars.ANALYTICS_ENABLED }}
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
+          ANALYTICS_PRIVACY_CONTACT: ${{ secrets.ANALYTICS_PRIVACY_CONTACT }}
+        run: |
+          $enabled = (
+            $env:ANALYTICS_ENABLED -ceq 'true' -and
+            $env:GITHUB_EVENT_NAME -ceq 'push' -and
+            $env:GITHUB_REF -ceq 'refs/heads/main'
+          )
+          & ./tools/configure_analytics.ps1 -Enabled:$enabled `
+            -ProjectToken $env:POSTHOG_PROJECT_TOKEN -PrivacyContact $env:ANALYTICS_PRIVACY_CONTACT
 
       - name: Windows-Fassung bauen
         run: |

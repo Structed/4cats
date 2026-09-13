@@ -342,12 +342,14 @@ func _open_modal(kind: String) -> void:
 	_release_inputs()
 	hud.open_modal(kind)
 	get_tree().paused = true
+	AnalyticsManager.player_activity()
 	_touch.call("set_enabled", false)
 	_save()
 
 func _close_modal() -> void:
 	hud.close_modal()
 	get_tree().paused = false
+	AnalyticsManager.player_activity()
 	_touch.call("set_enabled", true)
 	_release_inputs()
 	_input_delay = 0.15
