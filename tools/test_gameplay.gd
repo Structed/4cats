@@ -30,6 +30,18 @@ func _ready() -> void:
 
 ## Fuehrt alle Tests aus und beendet das Programm mit passendem Exit-Code.
 func run_all() -> void:
+	var suite := "all"
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--suite="):
+			suite = argument.trim_prefix("--suite=")
+	if suite not in ["all", "supplies"]:
+		_check(false, "Unbekannte Regelsuite: %s" % suite)
+		_finish()
+		return
+	if suite == "supplies":
+		_run_supply_tests()
+		_finish()
+		return
 	_test_cat_data()
 	_test_movement_balance()
 	_test_home_indicator()
@@ -43,7 +55,23 @@ func run_all() -> void:
 	var home_suite: GDScript = load("res://tools/test_home_gameplay.gd")
 	var home_tests: RefCounted = home_suite.new()
 	_failures.append_array(home_tests.run(get_tree()))
+	_run_supply_tests()
+	var shop_suite: GDScript = load("res://tools/test_shop_gameplay.gd")
+	var shop_tests: RefCounted = shop_suite.new()
+	_failures.append_array(shop_tests.run())
+	_finish()
 
+
+func _run_supply_tests() -> void:
+	var supply_suite: GDScript = load("res://tools/test_supply_gameplay.gd")
+	var supply_tests: RefCounted = supply_suite.new()
+	_failures.append_array(supply_tests.run(get_tree()))
+	var analytics_suite: GDScript = load("res://tools/test_gameplay_stats.gd")
+	var analytics_tests: RefCounted = analytics_suite.new()
+	_failures.append_array(analytics_tests.run(get_tree()))
+
+
+func _finish() -> void:
 	print("")
 	if _failures.is_empty():
 		print("Alle Tests bestanden.")

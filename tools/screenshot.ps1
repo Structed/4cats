@@ -18,7 +18,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutputPath,
 
-    [string]$GodotPath = 'C:\Godot\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2-stable_win64_console.exe',
+    [string]$GodotPath = '',
 
     [int]$Width = 1280,
     [int]$Height = 720,
@@ -31,16 +31,34 @@ param(
 
     [switch]$Touch,
 
-    [ValidateSet('play', 'furnish', 'placement', 'cat')]
-    [string]$HomeView = 'play'
+    [ValidateSet('play', 'furnish', 'placement', 'cat', 'supplies', 'parcel', 'critical')]
+    [string]$HomeView = 'play',
+
+    [ValidateSet('play', 'difficulty')]
+    [string]$MenuView = 'play',
+
+    [ValidateSet('play', 'shop')]
+    [string]$RescueView = 'play',
+
+    [ValidateSet('relaxed', 'challenging', 'realistic')]
+    [string]$DemoMode = 'relaxed'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if (-not (Test-Path $GodotPath)) { throw "Godot nicht gefunden: $GodotPath" }
+$previousGodot = $env:GODOT
+try {
+    if ($GodotPath) { $env:GODOT = $GodotPath }
+    $GodotPath = & (Join-Path $PSScriptRoot 'godot.ps1') --which
+}
+finally {
+    $env:GODOT = $previousGodot
+}
+if (-not $GodotPath -or -not (Test-Path $GodotPath)) { throw "Godot nicht gefunden: $GodotPath" }
 
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$OutputPath = [System.IO.Path]::GetFullPath($OutputPath, $PWD.Path)
 
 $targetDir = Split-Path $OutputPath -Parent
 if ($targetDir -and -not (Test-Path $targetDir)) { New-Item -ItemType Directory -Force -Path $targetDir | Out-Null }
@@ -52,15 +70,27 @@ $godotOutput = (Join-Path (Resolve-Path $targetDir).Path (Split-Path $OutputPath
 $arguments = @(
     '--path', $ProjectRoot,
     '--resolution', "${Width}x${Height}",
+    '--log-file', "$OutputPath.log",
     '--',
     "--start=$Scene",
     "--screenshot=$godotOutput"
 )
-if ($Demo) { $arguments += '--demo' }
+if ($Demo) { $arguments += '--demo', "--demo-mode=$DemoMode" }
+elseif ($DemoMode -ne 'relaxed' -or $HomeView -in @('parcel', 'critical')) {
+    throw 'DemoMode und die Paket-/Risikovorschau brauchen -Demo.'
+}
 if ($Touch) { $arguments += '--touch-preview' }
 if ($HomeView -ne 'play') {
     if ($Scene -ne 'home') { throw 'HomeView ist nur fuer die Hausszene verfuegbar.' }
     $arguments += "--home-preview=$HomeView"
+}
+if ($MenuView -ne 'play') {
+    if ($Scene -ne 'menu') { throw 'MenuView ist nur fuer das Hauptmenue verfuegbar.' }
+    $arguments += "--menu-preview=$MenuView"
+}
+if ($RescueView -ne 'play') {
+    if ($Scene -ne 'rescue') { throw 'RescueView ist nur fuer die Rettungsszene verfuegbar.' }
+    $arguments += "--rescue-preview=$RescueView"
 }
 
 Write-Host "Starte: $Scene -> $godotOutput"
@@ -69,6 +99,10 @@ $process = Start-Process -FilePath $GodotPath -ArgumentList $arguments -PassThru
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
     Stop-Process -Id $process.Id -Force
     throw "Zeitueberschreitung nach $TimeoutSeconds s."
+}
+
+if ($process.ExitCode -ne 0) {
+    throw "Godot hat die Aufnahme mit Exit-Code $($process.ExitCode) abgebrochen. Siehe $OutputPath.log"
 }
 
 if (-not (Test-Path $OutputPath)) {

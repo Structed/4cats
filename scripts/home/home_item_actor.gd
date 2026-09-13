@@ -39,6 +39,11 @@ func _draw() -> void:
 	var using_item := simulation != null and simulation.item_in_use(data.id)
 	if data.kind in ["food", "water"]:
 		row = 1 if data.stock > 0 else 0
+	elif data.kind == "pantry":
+		row = 0 if GameState.supplies.food_stock == 0 \
+			else (2 if GameState.supplies.food_stock >= SupplyCatalog.PACKAGE_UNITS else 1)
+	elif data.kind == "faucet":
+		row = 1
 	elif data.kind == "litter":
 		row = 2 if data.dirt >= HomeCatalog.capacity("litter") else (1 if data.dirt > 0 else 0)
 	elif using_item:

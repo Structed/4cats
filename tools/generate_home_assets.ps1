@@ -120,15 +120,63 @@ function Paint-Item($G, [int]$Kind, [int]$State) {
                 Box $G '#9a955b' 18 0 2 4
             }
         }
+        6 {
+            Box $G '#684e44' 4 25 4 6
+            Box $G '#684e44' 23 25 4 6
+            Box $G '#614b40' 2 2 28 26
+            Box $G '#b88557' 3 3 26 24
+            Box $G '#e2b47a' 4 3 24 3
+            Box $G '#765039' 6 7 20 17
+            Box $G '#cea26d' 6 14 20 2
+            Box $G '#cea26d' 6 23 20 2
+            Box $G '#e2b47a' 4 7 2 18
+            Box $G '#e2b47a' 26 7 2 18
+            if ($State -gt 0) {
+                Box $G '#d9a964' 8 8 6 6
+                Box $G '#fff0cb' 10 9 2 4
+                Box $G '#a65f53' 17 8 6 6
+                Box $G '#f6c775' 18 10 4 2
+                Box $G '#d9a964' 8 17 8 6
+                Box $G '#fff0cb' 11 17 2 6
+            }
+            if ($State -gt 1) {
+                Box $G '#92aa77' 19 17 5 6
+                Box $G '#e6edcb' 20 18 3 2
+            }
+        }
+        7 {
+            Box $G '#4c6470' 4 25 4 5
+            Box $G '#4c6470' 23 25 4 5
+            Box $G '#4c6470' 2 13 28 14
+            Box $G '#93b8b5' 3 14 26 11
+            Box $G '#d5e6d7' 4 14 24 3
+            Box $G '#6d939a' 6 18 20 6
+            Box $G '#476775' 8 2 5 12
+            Box $G '#476775' 10 1 13 5
+            Box $G '#476775' 20 4 4 6
+            Box $G '#cde1db' 9 3 3 9
+            Box $G '#cde1db' 12 2 10 2
+            Box $G '#cde1db' 21 4 2 4
+            Box $G '#7eaac0' 5 6 6 2
+            Box $G '#eff5e9' 7 4 2 5
+            Box $G '#426c87' 15 11 12 12
+            Box $G '#8cc4d1' 16 12 10 10
+            Box $G '#def0e7' 17 12 8 2
+            if ($State -gt 0) {
+                Box $G '#559fd1' 17 15 8 5
+                Box $G '#b7eced' 18 15 5 1
+            }
+            if ($State -gt 1) { Box $G '#a3e3ef' 21 9 2 3 }
+        }
     }
 }
 
-$Items = [System.Drawing.Bitmap]::new(192, 96)
+$Items = [System.Drawing.Bitmap]::new(256, 96)
 $G = [System.Drawing.Graphics]::FromImage($Items)
 try {
     $G.Clear([System.Drawing.Color]::Transparent)
     for ($row = 0; $row -lt 3; $row++) {
-        for ($column = 0; $column -lt 6; $column++) {
+        for ($column = 0; $column -lt 8; $column++) {
             $G.TranslateTransform($column * 32, $row * 32)
             Paint-Item $G $column $row
             $G.ResetTransform()
@@ -167,11 +215,11 @@ try {
     $Tiles.Save((Join-Path $Sprites 'home_tiles.png'), [System.Drawing.Imaging.ImageFormat]::Png)
 } finally { $G.Dispose(); $Tiles.Dispose() }
 
-$Icons = [System.Drawing.Bitmap]::new(112, 16)
+$Icons = [System.Drawing.Bitmap]::new(144, 16)
 $G = [System.Drawing.Graphics]::FromImage($Icons)
 try {
     $G.Clear([System.Drawing.Color]::Transparent)
-    for ($column = 0; $column -lt 7; $column++) {
+    for ($column = 0; $column -lt 9; $column++) {
         $G.TranslateTransform($column * 16, 0)
         switch ($column) {
             0 {
@@ -222,11 +270,76 @@ try {
                 Box $G '#f0979f' 5 7 6 4
                 Box $G '#f0979f' 7 10 2 3
             }
+            7 {
+                Box $G '#614b40' 2 1 12 14
+                Box $G '#c99763' 3 2 10 12
+                Box $G '#765039' 4 4 8 4
+                Box $G '#765039' 4 9 8 4
+                Box $G '#e7bd7b' 5 5 3 3
+                Box $G '#a65f53' 9 5 2 3
+                Box $G '#e7bd7b' 5 10 5 3
+                Box $G '#fff0cb' 6 10 1 3
+            }
+            8 {
+                Box $G '#476775' 4 1 3 12
+                Box $G '#476775' 6 1 7 3
+                Box $G '#476775' 11 3 3 3
+                Box $G '#cde1db' 5 2 1 8
+                Box $G '#cde1db' 7 2 5 1
+                Box $G '#7eaac0' 2 5 5 2
+                Box $G '#559fd1' 11 7 2 3
+                Box $G '#559fd1' 10 10 4 3
+                Box $G '#b7eced' 11 10 1 2
+                Box $G '#93b8b5' 2 13 12 2
+            }
         }
         $G.ResetTransform()
     }
     $Icons.Save((Join-Path $Sprites 'home_icons.png'), [System.Drawing.Imaging.ImageFormat]::Png)
 } finally { $G.Dispose(); $Icons.Dispose() }
+
+$Cargo = [System.Drawing.Bitmap]::new(48, 16)
+$G = [System.Drawing.Graphics]::FromImage($Cargo)
+try {
+    $G.Clear([System.Drawing.Color]::Transparent)
+    for ($column = 0; $column -lt 3; $column++) {
+        $G.TranslateTransform($column * 16, 0)
+        switch ($column) {
+            0 {
+                Box $G '#684e44' 3 4 10 11
+                Box $G '#d9956b' 4 5 8 9
+                Box $G '#f5c38a' 3 5 10 2
+                Box $G '#765039' 4 3 8 3
+                Box $G '#e7bd7b' 5 2 3 3
+                Box $G '#e7bd7b' 9 3 2 2
+                Box $G '#fff0cb' 6 9 4 3
+                Box $G '#a3733e' 7 10 2 1
+            }
+            1 {
+                Box $G '#426c87' 4 1 8 6
+                Box $G '#cde1db' 5 2 6 3
+                Box $G '#426c87' 2 5 12 9
+                Box $G '#8cc4d1' 3 6 10 7
+                Box $G '#559fd1' 4 6 8 3
+                Box $G '#b7eced' 5 6 5 1
+                Box $G '#def0e7' 4 10 2 2
+                Box $G '#426c87' 4 14 8 1
+            }
+            2 {
+                Box $G '#684e44' 1 3 14 11
+                Box $G '#bc8551' 2 4 12 9
+                Box $G '#e2b47a' 2 3 12 3
+                Box $G '#f7dfaa' 7 3 3 10
+                Box $G '#ad7746' 2 6 12 1
+                Box $G '#e9ebcd' 3 8 4 4
+                Box $G '#60866c' 4 9 2 2
+                Box $G '#835b40' 11 11 2 1
+            }
+        }
+        $G.ResetTransform()
+    }
+    $Cargo.Save((Join-Path $Sprites 'supply_cargo.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+} finally { $G.Dispose(); $Cargo.Dispose() }
 
 $TileSet = @'
 [gd_resource type="TileSet" load_steps=3 format=3]
@@ -247,4 +360,4 @@ sources/0 = SubResource("TileSetAtlasSource_home")
 '@
 [System.IO.File]::WriteAllText((Join-Path $Resources 'home_tileset.tres'),
     $TileSet.Replace("`r`n", "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
-Write-Host 'Erzeugt: home_items.png (192x96), home_tiles.png (64x16), home_icons.png (112x16), home_tileset.tres'
+Write-Host 'Erzeugt: home_items.png (256x96), home_tiles.png (64x16), home_icons.png (144x16), supply_cargo.png (48x16), home_tileset.tres'

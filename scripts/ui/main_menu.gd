@@ -27,6 +27,10 @@ const TOUCH_SETTING := "force_touch_controls"
 @onready var _confirm_dim: ColorRect = %ConfirmDim
 @onready var _confirm_yes: Button = %ConfirmYesButton
 @onready var _confirm_no: Button = %ConfirmNoButton
+@onready var _difficulty_choice: OptionButton = %DifficultyChoice
+@onready var _difficulty_description: Label = %DifficultyDescription
+@onready var _confirm_text: Label = $ConfirmPanel/Box/Text
+@onready var _menu_error: Label = %MenuError
 
 
 func _ready() -> void:
@@ -49,6 +53,11 @@ func _ready() -> void:
 	_options_close.pressed.connect(_on_options_close_pressed)
 	_confirm_yes.pressed.connect(_on_confirm_yes)
 	_confirm_no.pressed.connect(_on_confirm_no)
+	for id in DifficultyRules.IDS:
+		_difficulty_choice.add_item(DifficultyRules.title(id))
+	_difficulty_choice.item_selected.connect(_on_difficulty_selected)
+	_on_difficulty_selected(0)
+	SaveManager.save_failed.connect(_show_error)
 
 	_load_settings()
 	_master_slider.value_changed.connect(_on_master_changed)
@@ -119,33 +128,50 @@ func _store(key: String, value: Variant) -> void:
 
 func _on_continue_pressed() -> void:
 	AudioManager.play_sfx("ui_click")
-	SaveManager.load_game()
-	SceneRouter.goto_home()
+	if SaveManager.load_game():
+		SceneRouter.goto_home()
+	else:
+		_show_error("Der Spielstand konnte nicht geladen werden.")
 
 
 func _on_new_game_pressed() -> void:
 	AudioManager.play_sfx("ui_click")
-	if SaveManager.has_save():
-		_set_confirm_visible(true)
-		return
-	_start_new_game()
+	_difficulty_choice.select(0)
+	_on_difficulty_selected(0)
+	_confirm_text.text = "Ein neues Spiel überschreibt deinen Spielstand." if SaveManager.has_save() \
+		else "Wähle den Modus für dein neues Katzenhaus."
+	_menu_error.hide()
+	_set_confirm_visible(true)
 
 
-func _start_new_game() -> void:
-	GameState.reset()
-	SaveManager.save_game()
-	SceneRouter.goto_home()
+func _start_new_game(mode: String = DifficultyRules.DEFAULT) -> void:
+	var previous := GameState.to_dict()
+	GameState.reset(mode)
+	if SaveManager.save_game():
+		SceneRouter.goto_home()
+	else:
+		GameState.from_dict(previous)
 
 
 func _on_confirm_yes() -> void:
 	AudioManager.play_sfx("ui_click")
+	var mode: String = DifficultyRules.IDS[_difficulty_choice.selected]
 	_set_confirm_visible(false)
-	_start_new_game()
+	_start_new_game(mode)
 
 
 func _on_confirm_no() -> void:
 	AudioManager.play_sfx("ui_back")
 	_set_confirm_visible(false)
+
+
+func _on_difficulty_selected(index: int) -> void:
+	_difficulty_description.text = DifficultyRules.description(DifficultyRules.IDS[index])
+
+
+func _show_error(message: String) -> void:
+	_menu_error.text = message
+	_menu_error.show()
 
 
 func _on_options_pressed() -> void:

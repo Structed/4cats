@@ -22,7 +22,15 @@ func _ready() -> void:
 
 ## Legt eine Handvoll Katzen in unterschiedlichen Zustaenden zu Hause ab.
 func populate() -> void:
-	GameState.reset()
+	var mode := DifficultyRules.DEFAULT
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--demo-mode="):
+			mode = argument.trim_prefix("--demo-mode=")
+	if not DifficultyRules.IDS.has(mode):
+		push_error("Unbekannter Demo-Modus: %s" % mode)
+		get_tree().quit(1)
+		return
+	GameState.reset(mode)
 	GameState.add_coins(180)
 
 	for preset in PRESETS:
@@ -36,6 +44,7 @@ func populate() -> void:
 		cat.recovery_timer = float(preset.get("recovery", 0.0))
 		cat.enrichment = float(preset["play"])
 		cat.state = CatData.State.AT_HOME
+		cat.age_group = CatData.Age.SENIOR if cat.cat_name == "Mimi" else CatData.Age.ADULT
 		GameState.home_cats.append(cat)
 
 	GameState.rescued_total = PRESETS.size()

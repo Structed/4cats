@@ -45,7 +45,8 @@ erzeugt, damit sie reproduzierbar bleiben:
 | `assets/icon/icon_192.png` | `tools/generate_icons.ps1` | Android-Launcher-Symbol |
 | `assets/icon/icon_adaptive_*_432.png` | `tools/generate_icons.ps1` | Adaptive Android-Symbole |
 | `resources/urban_tileset.tres` | `tools/generate_tileset.ps1` | TileSet aus dem RPG Urban Pack |
-| `assets/sprites/home_items.png` | `tools/generate_home_assets.ps1` | Sechs Katzenhaus-Gegenstände mit leeren, gefüllten, benutzten und verschmutzten Zuständen |
+| `assets/sprites/home_items.png` | `tools/generate_home_assets.ps1` | Acht Katzenhaus-Gegenstände einschließlich Vorratsschrank und Wasserhahn, mit passenden Zuständen |
+| `assets/sprites/supply_cargo.png` | `tools/generate_home_assets.ps1` | Getragene Futterportionen, Wassergefäß und Futterpaket |
 | `assets/sprites/home_tiles.png` | `tools/generate_home_assets.ps1` | Holzboden, Wand und Ausgang des Katzenhauses |
 | `assets/sprites/home_icons.png` | `tools/generate_home_assets.ps1` | Bedarfssymbole für die Gedankenblasen der Katzen |
 | `resources/home_tileset.tres` | `tools/generate_home_assets.ps1` | TileSet aus den selbst erzeugten Hausgrafiken |

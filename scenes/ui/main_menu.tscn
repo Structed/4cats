@@ -71,6 +71,15 @@ autowrap_mode = 2
 custom_minimum_size = Vector2(0, 4)
 layout_mode = 2
 
+[node name="MenuError" type="Label" parent="Layout/MenuCenter/Center"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.65, 0.5, 1)
+theme_override_font_sizes/font_size = 11
+autowrap_mode = 2
+horizontal_alignment = 1
+
 [node name="ContinueButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -279,16 +288,42 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -130.0
-offset_top = -60.0
-offset_right = 130.0
-offset_bottom = 60.0
+offset_left = -192.0
+offset_top = -144.0
+offset_right = 192.0
+offset_bottom = 144.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Box" type="VBoxContainer" parent="ConfirmPanel"]
 layout_mode = 2
 theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="ConfirmPanel/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Neues Spiel"
+horizontal_alignment = 1
+
+[node name="DifficultyChoice" type="OptionButton" parent="ConfirmPanel/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+
+[node name="DifficultyDescription" type="Label" parent="ConfirmPanel/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 2
+
+[node name="Rules" type="Label" parent="ConfirmPanel/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Der Modus bleibt für diesen Spielstand fest.
+Keine Offline-Vernachlässigung. Wasser ist immer kostenlos."
+autowrap_mode = 2
 
 [node name="Text" type="Label" parent="ConfirmPanel/Box"]
 layout_mode = 2
@@ -305,7 +340,7 @@ theme_override_constants/separation = 8
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Ja, neu"
+text = "Spiel starten"
 
 [node name="ConfirmNoButton" type="Button" parent="ConfirmPanel/Box/Buttons"]
 unique_name_in_owner = true

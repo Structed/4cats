@@ -56,16 +56,26 @@ text = "Nach Hause"
 [node name="HintLabel" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -190.0
-offset_top = 44.0
-offset_right = 190.0
+anchor_right = 1.0
+offset_left = 300.0
+offset_top = 42.0
+offset_right = -8.0
 offset_bottom = 68.0
 grow_horizontal = 2
+theme_override_font_sizes/font_size = 11
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
+
+[node name="ShopHint" type="Label" parent="."]
+layout_mode = 1
+offset_left = 8.0
+offset_top = 52.0
+offset_right = 288.0
+offset_bottom = 68.0
+mouse_filter = 2
+theme_override_font_sizes/font_size = 10
+text = "Futterladen: oberhalb von Zuhause"
 
 [node name="PauseDim" type="ColorRect" parent="."]
 unique_name_in_owner = true

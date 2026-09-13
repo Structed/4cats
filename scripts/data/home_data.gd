@@ -22,6 +22,34 @@ func item_by_id(id: String) -> HomeItemData:
 			return item
 	return null
 
+func add_supply_fixtures() -> void:
+	var occupants: Array[Vector2] = [player_position]
+	for state: HomeCatState in cats.values():
+		occupants.append(state.position)
+	for kind in SupplyCatalog.FIXTURES:
+		var exists := false
+		for existing in items:
+			exists = exists or existing.kind == kind
+		if exists:
+			continue
+		var item := HomeItemData.new()
+		item.id = "starter_" + kind
+		while item_by_id(item.id) != null:
+			item.id += "_new"
+		item.kind = kind
+		item.placed = false
+		items.append(item)
+		var layout := HomeLayout.new(self)
+		var candidates: Array[Vector2i] = [HomeCatalog.START_CELLS[HomeCatalog.KINDS.find(kind)]]
+		for y in range(1, HomeCatalog.ROOM_SIZE.y - 1):
+			for x in range(1, HomeCatalog.ROOM_SIZE.x - 1):
+				candidates.append(Vector2i(x, y))
+		for cell in candidates:
+			if layout.placement_error(item.id, cell, 0, occupants).is_empty():
+				item.cell = cell
+				item.placed = true
+				break
+
 func to_dict() -> Dictionary:
 	var stored_items: Array = []
 	for item in items:

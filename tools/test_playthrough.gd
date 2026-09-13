@@ -19,6 +19,13 @@ var _failures: PackedStringArray = []
 
 
 func _ready() -> void:
+	_reparent_to_root.call_deferred()
+
+
+func _reparent_to_root() -> void:
+	var root := get_tree().root
+	get_parent().remove_child(self)
+	root.add_child(self)
 	_run()
 
 
@@ -31,6 +38,21 @@ func _check(condition: bool, description: String) -> void:
 
 
 func _run() -> void:
+	var suite := "all"
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--suite="):
+			suite = argument.trim_prefix("--suite=")
+	if suite not in ["all", "home", "shop"]:
+		_check(false, "Unbekannte Spieltestsuite: %s" % suite)
+		_finish(null)
+		return
+	if suite != "all":
+		if suite == "home":
+			await _run_home_test()
+		else:
+			await _run_shop_test()
+		_finish(null)
+		return
 	print("--- Spieltest: Katze einfangen ---")
 
 	var scene: PackedScene = load("res://scenes/rescue/rescue_level.tscn")
@@ -65,6 +87,12 @@ func _run() -> void:
 
 	level.queue_free()
 	await get_tree().process_frame
+	await _run_home_test()
+	await _run_shop_test()
+	_finish(null)
+
+
+func _run_home_test() -> void:
 	var home_test_script: GDScript = load("res://tools/test_home_playthrough.gd")
 	var home_test: Node = home_test_script.new()
 	add_child(home_test)
@@ -72,7 +100,16 @@ func _run() -> void:
 	_failures.append_array(home_failures)
 	home_test.queue_free()
 	await get_tree().process_frame
-	_finish(null)
+
+
+func _run_shop_test() -> void:
+	var shop_test_script: GDScript = load("res://tools/test_shop_playthrough.gd")
+	var shop_test: Node = shop_test_script.new()
+	add_child(shop_test)
+	var shop_failures: PackedStringArray = await shop_test.run()
+	_failures.append_array(shop_failures)
+	shop_test.queue_free()
+	await get_tree().process_frame
 
 
 ## Baut ein Gitter fuer die Wegfindung: jede Kachel mit einem Haus oder Baum

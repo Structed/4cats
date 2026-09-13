@@ -46,6 +46,19 @@ func _check(condition: bool, description: String) -> void:
 
 
 func _run() -> void:
+	var suite := "all"
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--suite="):
+			suite = argument.trim_prefix("--suite=")
+	if suite not in ["all", "menus"]:
+		_check(false, "Unbekannte Oberflaechensuite: %s" % suite)
+		_finish()
+		return
+	if suite == "menus":
+		await _test_main_menu()
+		await _test_new_game_modes()
+		_finish()
+		return
 	await _test_main_menu()
 	await _test_home()
 	await _test_adoption_status()
@@ -53,6 +66,7 @@ func _run() -> void:
 	await _test_rescue()
 	await _test_scene_transitions()
 	await _test_real_ui_path()
+	await _test_new_game_modes()
 	await _test_resume_with_save()
 	_finish()
 
@@ -205,15 +219,49 @@ func _test_real_ui_path() -> void:
 		"Der Weiterspielen-Knopf ist vorhanden")
 
 
-## Wartet, bis der SceneRouter fertig gewechselt hat.
+func _test_new_game_modes() -> void:
+	print("--- Moduswahl ueber echte Menueeingaben ---")
+	for index in DifficultyRules.IDS.size():
+		SceneRouter.goto_main_menu()
+		await _wait_for_scene("MainMenu")
+		var menu := get_tree().current_scene
+		if menu == null or menu.name != "MainMenu":
+			_check(false, "Hauptmenue fuer Moduswahl vorhanden")
+			return
+		_click_control(_node(menu, "%NewGameButton"))
+		await _wait(0.1)
+		var choice: OptionButton = _node(menu, "%DifficultyChoice")
+		choice.grab_focus()
+		_send_ui_action(&"ui_accept")
+		await _wait(0.1)
+		var popup := choice.get_popup()
+		_check(popup.visible, "Die Modusauswahl laesst sich per Tastatur oeffnen")
+		for step in index:
+			_send_ui_action(&"ui_down", popup)
+			await get_tree().process_frame
+		_send_ui_action(&"ui_accept", popup)
+		await _wait(0.1)
+		_check(not popup.visible, "Die Tastaturbestaetigung schliesst das eingebettete Menue")
+		_check(choice.selected == index, "Der gewaehlte Modus folgt der Tastatureingabe (erwartet %d, gewaehlt %d)" % [
+			index, choice.selected])
+		_click_control(_node(menu, "%ConfirmYesButton"))
+		await _wait_for_scene("HomeScene")
+		var expected: String = DifficultyRules.IDS[index]
+		_check(GameState.difficulty_id == expected and GameState.home_cats.is_empty()
+			and GameState.supplies.food_stock == SupplyCatalog.START_FOOD,
+			"Ein bestaetigtes neues Spiel startet im gewaehlten Modus (%s)" % expected)
+		_check(SaveManager.load_game() and GameState.difficulty_id == expected,
+			"Der Modus gehoert dauerhaft zum Spielstand (%s)" % expected)
+
+
 func _wait_for_scene(expected_name: String, timeout: float = 6.0) -> void:
 	var deadline := Time.get_ticks_msec() + int(timeout * 1000.0)
 	while Time.get_ticks_msec() < deadline:
 		await get_tree().process_frame
 		var current := get_tree().current_scene
-		if current != null and current.name == expected_name:
-			# Noch kurz warten, bis die Blende durch ist.
-			await _wait(0.4)
+		# Auch beim erneuten Oeffnen derselben Szene auf die ganze Blende warten.
+		if current != null and current.name == expected_name and not bool(SceneRouter.get("_busy")):
+			await get_tree().process_frame
 			return
 	var actual := get_tree().current_scene
 	printerr("  Szene '%s' erschien nicht innerhalb von %.0f s (aktuell: %s)"
@@ -315,10 +363,30 @@ func _test_main_menu() -> void:
 	await _wait(0.2)
 	_check(_node(menu, "%ConfirmPanel").visible, "Nachfrage vor dem Ueberschreiben")
 	_check(_node(menu, "%ConfirmNoButton").has_focus(), "Die Nachfrage fokussiert Abbrechen")
+	var selection: OptionButton = _node(menu, "%DifficultyChoice")
+	var mode_description: Label = _node(menu, "%DifficultyDescription")
+	_check(selection.item_count == DifficultyRules.IDS.size() and selection.selected == 0,
+		"Ein neues Spiel bietet drei Modi mit sicherer Vorauswahl")
+	var snapshot := JSON.stringify(GameState.to_dict())
+	selection.select(2)
+	selection.item_selected.emit(2)
+	_check(mode_description.text.contains("sterben") and JSON.stringify(GameState.to_dict()) == snapshot,
+		"Die harte Modusvorschau warnt vor Katzentod und aendert noch keinen Spielstand")
+	var previous_size := get_window().size
+	for window_size in UI_WINDOW_SIZES:
+		get_window().size = window_size
+		await _wait(0.1)
+		var panel: Control = _node(menu, "%ConfirmPanel")
+		_check(panel.get_viewport_rect().encloses(panel.get_global_rect())
+			and panel.get_global_rect().encloses(_node(menu, "%ConfirmYesButton").get_global_rect())
+			and panel.get_global_rect().encloses(mode_description.get_global_rect()),
+			"Moduswahl, Warnung und Bestaetigung passen ins Bild (%s)" % window_size)
+	get_window().size = previous_size
 	_press(menu, "%ConfirmNoButton")
 	await _wait(0.2)
 	_check(not _node(menu, "%ConfirmPanel").visible, "Nachfrage laesst sich abbrechen")
 	_check(_node(menu, "%NewGameButton").has_focus(), "Nach Abbrechen kehrt der Fokus zurueck")
+	_check(JSON.stringify(GameState.to_dict()) == snapshot, "Abbrechen behaelt den bisherigen Modus und Zustand")
 
 	menu.queue_free()
 	await _wait(0.1)
@@ -378,14 +446,21 @@ func _test_home() -> void:
 	var simulation: HomeSimulation = home.get("simulation")
 	var actors: Dictionary = home.get("_cat_actors")
 	_check(actors.size() == 2, "Fuer jede Hauskatze gibt es eine laufende Darstellung")
-	_check(GameState.home.items.size() == 6, "Die kostenlose Grundausstattung ist vorhanden")
+	_check(GameState.home.items.size() == HomeCatalog.KINDS.size(), "Die kostenlose Grundausstattung ist vorhanden")
 	var touch: CanvasLayer = home.get_node("TouchControls")
 	touch.call("set_forced", true)
 	for kind in ["food", "water"]:
+		var source := GameState.home.item_by_id("starter_pantry" if kind == "food" else "starter_faucet")
+		player.position = HomeCatalog.world(source.port())
+		await _home_action(home)
+		_check(GameState.supplies.cargo_kind == kind, "%s wird zuerst per Touch an der Quelle geholt" % kind)
 		var item := GameState.home.item_by_id("starter_" + kind)
 		player.position = HomeCatalog.world(item.port())
 		await _home_action(home)
 		_check(item.stock > 0, "%s laesst sich per Touch-Kontextaktion auffuellen" % kind)
+		if not GameState.supplies.cargo_kind.is_empty():
+			player.position = HomeCatalog.world(source.port())
+			await _home_action(home)
 
 	var cat: CatData = GameState.home_cats[0]
 	var state: HomeCatState = GameState.home.cats[cat.id]
@@ -442,7 +517,7 @@ func _test_home() -> void:
 
 	_press(hud, "%FurnishButton")
 	_press(hud, "%Buy_toy")
-	_check(GameState.home.items.size() == 7, "Ein neues Spielzeug landet im Inventar")
+	_check(GameState.home.items.size() == HomeCatalog.KINDS.size() + 1, "Ein neues Spielzeug landet im Inventar")
 	var toy: HomeItemData = GameState.home.items.back()
 	var old_cell := toy.cell
 	player.position = HomeCatalog.world(Vector2i(16, 11))
@@ -990,7 +1065,22 @@ func _click_control(control: Control) -> void:
 		get_viewport().push_input(event, true)
 
 
-func _send_ui_action(action: StringName) -> void:
+func _send_ui_action(action: StringName, target: Viewport = null) -> void:
+	if target != null:
+		# Eingebettete Fenster erhalten Eingaben ueber ihren Eltern-Viewport.
+		var input_target: Viewport = target
+		if target is Window and target.is_embedded():
+			input_target = target.get_parent().get_viewport()
+		for binding in InputMap.action_get_events(action):
+			if binding is InputEventKey:
+				for pressed: bool in [true, false]:
+					var key := binding.duplicate() as InputEventKey
+					key.pressed = pressed
+					key.echo = false
+					input_target.push_input(key)
+				return
+		_check(false, "Tastaturbelegung fehlt fuer %s" % action)
+		return
 	for pressed: bool in [true, false]:
 		var event := InputEventAction.new()
 		event.action = action

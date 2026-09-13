@@ -2,6 +2,10 @@
 extends Node2D
 
 const REACH := 24.0
+const CAMERA_BOTTOM_MARGIN := 64
+const INTERACTION_ITEMS: PackedStringArray = [
+	"food", "water", "litter", "pantry", "faucet", "wash", "vet",
+]
 const NEED_TEXT := {
 	"hunger": "hat Hunger", "thirst": "hat Durst", "cleanliness": "möchte gewaschen werden",
 	"health": "braucht Behandlung", "enrichment": "möchte spielen",
@@ -21,6 +25,9 @@ var _cat_actors: Dictionary = {}
 var _item_actors: Dictionary = {}
 var _held_sprite := Sprite2D.new()
 var _held_atlas := AtlasTexture.new()
+var _parcel_pad: Polygon2D
+var _parcel_count: Label
+var _parcel_sprites: Array[Sprite2D] = []
 var _facing := Vector2.DOWN
 var _focus_id: String = ""
 var _focus_kind: String = ""
@@ -40,17 +47,22 @@ func _ready() -> void:
 	camera.limit_left = 0
 	camera.limit_top = 0
 	camera.limit_right = HomeCatalog.ROOM_SIZE.x * HomeCatalog.TILE
-	camera.limit_bottom = HomeCatalog.ROOM_SIZE.y * HomeCatalog.TILE
+	# Platz fuer die Kontextanzeige lassen, damit die Paketablage sichtbar bleibt.
+	camera.limit_bottom = HomeCatalog.ROOM_SIZE.y * HomeCatalog.TILE + CAMERA_BOTTOM_MARGIN
 	camera.reset_smoothing()
 	_build_room()
 	_held_atlas.atlas = load("res://assets/sprites/cats.png")
 	_held_sprite.texture = _held_atlas
 	player.add_child(_held_sprite)
+	var cargo := SupplyCargoActor.new()
+	cargo.name = "SupplyCargo"
+	player.add_child(cargo)
 	hud = HomeHUD.new()
 	hud.name = "HomeHUD"
 	$UI.add_child(hud)
 	hud.furnish_requested.connect(_toggle_furnishing)
 	hud.shop_requested.connect(func() -> void: _open_modal("shop"))
+	hud.supplies_requested.connect(func() -> void: _open_modal("supplies"))
 	hud.pause_requested.connect(_pause_or_cancel)
 	hud.close_requested.connect(_close_modal)
 	hud.menu_requested.connect(func() -> void: SceneRouter.goto_main_menu())
@@ -61,12 +73,16 @@ func _ready() -> void:
 	GameState.home_layout_changed.connect(_rebuild_items)
 	GameState.coins_changed.connect(func(_amount: int) -> void: hud.refresh())
 	GameState.cat_adopted.connect(_on_cat_adopted)
+	GameState.cat_died.connect(_on_cat_died)
+	GameState.supplies_changed.connect(_on_supplies_changed)
 	SaveManager.save_failed.connect(hud.show_toast)
 	simulation.care_finished.connect(_on_care_finished)
 	_touch.call("configure_home")
 	_rebuild_items()
 	_sync_cats()
-	hud.show_toast("Willkommen! Fülle die Näpfe. Mit B richtest du dein Katzenhaus ein.")
+	var fixture_hint := hud.fixture_hint()
+	hud.show_toast(fixture_hint if not fixture_hint.is_empty() \
+		else "Willkommen! Futter am Schrank und Wasser am Hahn holen, dann zu den Näpfen tragen.")
 
 func _build_room() -> void:
 	var floor_tiles: TileMapLayer = $Floor
@@ -87,9 +103,49 @@ func _build_room() -> void:
 	exit_label.text = "Rausgehen"
 	exit_label.add_theme_font_size_override("font_size", 10)
 	exit_label.add_theme_color_override("font_color", Color("#382c31"))
-	exit_label.position = HomeCatalog.world(HomeCatalog.ENTRY) + Vector2(-27, -3)
+	exit_label.position = HomeCatalog.world(HomeCatalog.ENTRY) + Vector2(-27, 1)
 	exit_label.z_index = -1
 	add_child(exit_label)
+	_build_parcel_spot()
+
+func _build_parcel_spot() -> void:
+	var spot := Node2D.new()
+	spot.name = "ParcelSpot"
+	spot.position = HomeCatalog.world(SupplyCatalog.PARCEL_CELL)
+	spot.z_index = -1
+	add_child(spot)
+	_parcel_pad = Polygon2D.new()
+	_parcel_pad.name = "ParcelPad"
+	_parcel_pad.polygon = PackedVector2Array([
+		Vector2(-12, -8), Vector2(8, -8), Vector2(8, 18), Vector2(-12, 18),
+	])
+	spot.add_child(_parcel_pad)
+	var atlas := AtlasTexture.new()
+	atlas.atlas = load("res://assets/sprites/supply_cargo.png")
+	atlas.region = Rect2(32, 0, 16, 16)
+	for index in 3:
+		var parcel := Sprite2D.new()
+		parcel.texture = atlas
+		parcel.position = Vector2(index * 2 - 4, 8 - index * 4)
+		spot.add_child(parcel)
+		_parcel_sprites.append(parcel)
+	_parcel_count = Label.new()
+	_parcel_count.name = "ParcelCount"
+	_parcel_count.position = Vector2(-40, -7)
+	_parcel_count.add_theme_font_size_override("font_size", 8)
+	_parcel_count.add_theme_color_override("font_color", Color("#382c31"))
+	_parcel_count.add_theme_color_override("font_outline_color", Color("#fff0cb"))
+	_parcel_count.add_theme_constant_override("outline_size", 2)
+	_parcel_count.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	spot.add_child(_parcel_count)
+	_update_parcels()
+
+func _update_parcels() -> void:
+	var ready := GameState.supplies.ready_count()
+	_parcel_count.text = "Pakete\n%d" % ready
+	for index in _parcel_sprites.size():
+		_parcel_sprites[index].visible = index < ready
+	_parcel_pad.color = Color("#e4b255") if _focus_kind == "parcel" else Color("#a17c5c")
 
 func _wall(center: Vector2, size: Vector2) -> void:
 	var wall := StaticBody2D.new()
@@ -109,6 +165,7 @@ func _sync_cats() -> void:
 	for id: String in _cat_actors.keys():
 		if simulation.cat_by_id(id) == null:
 			var actor: HomeCatActor = _cat_actors[id]
+			actor.hide()
 			actor.queue_free()
 			_cat_actors.erase(id)
 	for cat in GameState.home_cats:
@@ -118,6 +175,9 @@ func _sync_cats() -> void:
 			actor.simulation = simulation
 			_entities.add_child(actor)
 			_cat_actors[cat.id] = actor
+	_update_held_visual()
+	if not get_tree().paused and _preview == null and not simulation.is_caring():
+		_resolve_focus()
 	hud.refresh()
 
 func _rebuild_items() -> void:
@@ -206,17 +266,22 @@ func _resolve_focus() -> void:
 	_focus_id = ""
 	_focus_kind = ""
 	var closest := REACH
-	var holding := not simulation.held_cat_id.is_empty()
-	var hint := "Geh zu einer Katze oder einem Napf.\nB: Einrichten · Esc: Pause"
+	var held: CatData = simulation.cat_by_id(simulation.held_cat_id)
+	var holding := held != null
+	var carrying := not GameState.supplies.cargo_kind.is_empty()
+	var hint := "Geh zu einer Katze, einem Napf oder einer Quelle.\nB: Einrichten · Esc: Pause"
 	if holding:
 		_focus_kind = "drop"
-		var held := simulation.cat_by_id(simulation.held_cat_id)
 		hint = "%s absetzen\nOder zum Waschplatz / zur Behandlung tragen." % held.cat_name
+	elif carrying:
+		hint = "%s\n%s" % [GameState.supplies.cargo_text(), _cargo_destination()]
 	for actor: HomeCatActor in _cat_actors.values():
 		actor.selected = false
-		if holding:
+		if holding or carrying:
 			continue
-		var state: HomeCatState = GameState.home.cats[actor.data.id]
+		var state: HomeCatState = GameState.home.cats.get(actor.data.id)
+		if state == null:
+			continue
 		var distance := player.position.distance_to(state.position)
 		if distance < closest and _clear_line(state.position):
 			closest = distance
@@ -229,9 +294,7 @@ func _resolve_focus() -> void:
 		var actor: HomeItemActor = _item_actors.get(item.id)
 		if actor != null:
 			actor.selected = false
-		if holding and item.kind not in ["wash", "vet"]:
-			continue
-		if not holding and item.kind not in ["food", "water", "litter"]:
+		if not INTERACTION_ITEMS.has(item.kind):
 			continue
 		if _focus_kind == "cat" and item.kind in ["food", "water"] \
 				and item.stock == HomeCatalog.capacity(item.kind):
@@ -240,22 +303,31 @@ func _resolve_focus() -> void:
 		var distance := player.position.distance_to(point)
 		if distance <= closest and _clear_line(point):
 			closest = distance
-			_focus_kind = "item"
+			_focus_kind = item.kind
 			_focus_id = item.id
-			match item.kind:
-				"food": hint = "Futter nachfüllen\nKostenlos · Katzen bedienen sich selbst."
-				"water": hint = "Wasser nachfüllen\nKostenlos · Katzen bedienen sich selbst."
-				"litter": hint = "Katzenklo reinigen\n" + ("Die Streu ist sauber." if item.dirt == 0 else "Frische Streu wird gebraucht.")
-				"wash": hint = "Katze waschen\nAm Waschplatz sanft säubern."
-				"vet": hint = "Katze behandeln\nAn der Station gesund pflegen."
-	if not holding and player.position.distance_to(HomeCatalog.world(HomeCatalog.ENTRY)) < closest \
-			and _clear_line(HomeCatalog.world(HomeCatalog.ENTRY)):
+			hint = _item_hint(item, holding)
+	var parcel_point := HomeCatalog.world(SupplyCatalog.PARCEL_CELL)
+	var ready := GameState.supplies.ready_count()
+	if ready > 0 and player.position.distance_to(parcel_point) <= closest and _clear_line(parcel_point):
+		closest = player.position.distance_to(parcel_point)
+		_focus_kind = "parcel"
+		_focus_id = ""
+		hint = "Paket abholen\n%d bereit · Ein Paket zum Vorratsschrank tragen." % ready
+		if holding:
+			hint = "Paket abholen\nSetze zuerst die Katze ab."
+		elif carrying:
+			hint = "Paket abholen\n" + _cargo_return_hint()
+	var exit_point := HomeCatalog.world(HomeCatalog.ENTRY)
+	# Die Tuer gewinnt bei gleicher Entfernung; Pakete blockieren den Ausgang nie.
+	if not holding and player.position.distance_to(exit_point) <= closest and _clear_line(exit_point):
 		_focus_kind = "exit"
-		hint = "Rausgehen und Katzen retten"
+		_focus_id = ""
+		hint = "Rausgehen\nKatzen retten oder Futter im Laden holen."
 	if _focus_kind == "cat":
 		(_cat_actors[_focus_id] as HomeCatActor).selected = true
-	elif _focus_kind == "item":
+	elif INTERACTION_ITEMS.has(_focus_kind) and _item_actors.has(_focus_id):
 		(_item_actors[_focus_id] as HomeItemActor).selected = true
+	_update_parcels()
 	var observed: CatData
 	if holding:
 		observed = simulation.cat_by_id(simulation.held_cat_id)
@@ -264,6 +336,67 @@ func _resolve_focus() -> void:
 	hud.set_cat_status(observed)
 	hud.set_hint(("E / Aktion: " if not _focus_kind.is_empty() else "") + hint)
 	_touch.call("set_action_label", hint.get_slice("\n", 0) if not _focus_kind.is_empty() else "Interaktion")
+
+func _item_hint(item: HomeItemData, holding: bool) -> String:
+	match item.kind:
+		"food", "water":
+			var title := "Futter nachfüllen" if item.kind == "food" else "Wasser nachfüllen"
+			var detail := "Futter zuerst am Schrank holen." if item.kind == "food" \
+				else "Wasser zuerst am Hahn holen."
+			if holding:
+				detail = "Setze zuerst die Katze ab."
+			elif item.stock == HomeCatalog.capacity(item.kind):
+				detail = "Dieser Napf ist schon voll."
+			elif GameState.supplies.cargo_kind == "package":
+				detail = "Paket zuerst im Schrank einräumen."
+			elif GameState.supplies.cargo_kind == item.kind:
+				detail = "%d Portionen auf dem Arm." % GameState.supplies.cargo_amount
+			return "%s\nNapf: %d/%d · %s" % [
+				title, item.stock, HomeCatalog.capacity(item.kind), detail]
+		"pantry":
+			var title := "Futter holen"
+			if GameState.supplies.cargo_kind == "package":
+				title = "Paket einräumen"
+			elif GameState.supplies.cargo_kind == "food":
+				title = "Futter zurücklegen"
+			var detail := "Vorrat: %d Portionen · Für alle Schränke gemeinsam." % GameState.supplies.food_stock
+			if holding:
+				detail = "Setze zuerst die Katze ab."
+			elif GameState.supplies.cargo_kind == "water":
+				detail = "Wasser zuerst am Hahn zurückgeben."
+			elif GameState.supplies.food_stock == 0 and GameState.supplies.cargo_kind.is_empty():
+				detail = "Schrank leer: im Laden holen oder unter Vorräte bestellen."
+			return "%s\n%s" % [title, detail]
+		"faucet":
+			var title := "Wasser zurückgeben" if GameState.supplies.cargo_kind == "water" else "Wasser holen"
+			var detail := "Kostenlos · Zum Wassernapf tragen."
+			if holding:
+				detail = "Setze zuerst die Katze ab."
+			elif GameState.supplies.cargo_kind in ["food", "package"]:
+				detail = "Futter zuerst im Schrank einräumen."
+			return "%s\n%s" % [title, detail]
+		"litter":
+			return "Katzenklo reinigen\n" + ("Setze zuerst die Katze ab." if holding else (
+				"Die Streu ist sauber." if item.dirt == 0 else "Frische Streu wird gebraucht."))
+		"wash", "vet":
+			var title := "Katze waschen" if item.kind == "wash" else "Katze behandeln"
+			var detail := "Sanfte Pflege · kostenlos." if holding else "Trage zuerst eine Katze hierher."
+			return "%s\n%s" % [title, detail]
+	return ""
+
+func _cargo_destination() -> String:
+	match GameState.supplies.cargo_kind:
+		"food": return "Zum Futternapf tragen; Reste am Schrank zurücklegen."
+		"water": return "Zum Wassernapf tragen; Reste am Hahn zurückgeben."
+		"package": return "Paket zuerst am Vorratsschrank einräumen."
+	return ""
+
+func _cargo_return_hint() -> String:
+	match GameState.supplies.cargo_kind:
+		"food": return "Lege das Futter zuerst im Vorratsschrank zurück."
+		"water": return "Gib das Wasser zuerst am Hahn zurück."
+		"package": return "Räume das Paket zuerst im Vorratsschrank ein."
+	return ""
 
 func _cat_hint(cat: CatData) -> String:
 	var lowest := CatData.RECOVERY_THRESHOLD
@@ -283,49 +416,92 @@ func interact() -> void:
 		return
 	match _focus_kind:
 		"cat":
-			if simulation.pick_up(_focus_id):
+			if not GameState.supplies.cargo_kind.is_empty():
+				hud.show_toast(_cargo_return_hint())
+			elif simulation.pick_up(_focus_id):
 				AudioManager.play_sfx("pickup")
+			else:
+				hud.show_toast("Diese Katze lässt sich gerade nicht aufnehmen.")
 		"drop":
 			var target := player.position + _facing * 18.0
 			if not simulation.drop(target):
 				hud.show_toast("Hier ist kein freier Platz zum Absetzen.")
 			else:
 				_save()
-		"item":
-			var item := GameState.home.item_by_id(_focus_id)
-			if item.kind in ["food", "water"]:
-				if item.stock == HomeCatalog.capacity(item.kind):
-					hud.show_toast("Dieser Napf ist schon voll.")
-					return
-				item.stock = HomeCatalog.capacity(item.kind)
-			elif item.kind == "litter":
-				if simulation.item_in_use(item.id):
-					hud.show_toast("Bitte warten, bis die Katze fertig ist.")
-					return
-				item.dirt = 0
-			else:
-				if not simulation.begin_care(item):
-					hud.show_toast("Die Station ist gerade nicht frei.")
-				return
-			AudioManager.play_sfx_varied("care")
-			hud.show_toast("%s ist bereit." % HomeCatalog.title(item.kind))
-			_save()
+		"food", "water", "litter", "pantry", "faucet", "wash", "vet":
+			_interact_item()
+		"parcel":
+			var error := GameState.collect_delivery()
+			_finish_supply_action(error,
+				"Paket aufgenommen. Am Vorratsschrank einräumen. Noch %d bereit." % GameState.supplies.ready_count(),
+				"pickup")
 		"exit":
 			SceneRouter.goto_rescue()
 		_:
-			hud.show_toast("Geh näher an eine Katze oder an die Bedienseite eines Gegenstands.")
+			hud.show_toast(_cargo_destination() if not GameState.supplies.cargo_kind.is_empty() \
+				else "Geh näher an eine Katze oder an die Bedienseite eines Gegenstands.")
+
+func _interact_item() -> void:
+	var item := GameState.home.item_by_id(_focus_id)
+	if item == null or not item.placed:
+		hud.show_toast("Dieser Gegenstand ist nicht mehr aufgestellt.")
+		return
+	if item.kind in ["food", "water"]:
+		var before := item.stock
+		var error := GameState.refill_bowl(item.id)
+		_finish_supply_action(error, "%d Portionen eingefüllt. %s." % [
+			item.stock - before, GameState.supplies.cargo_text()])
+	elif item.kind in SupplyCatalog.FIXTURES:
+		var previous := GameState.supplies.cargo_kind
+		var error := GameState.use_supply_station(item.id)
+		var message := GameState.supplies.cargo_text() + ". " + _cargo_destination()
+		if GameState.supplies.cargo_kind.is_empty():
+			if item.kind == "pantry":
+				message = "%s Vorrat: %d Portionen." % [
+					"Paket eingeräumt." if previous == "package" else "Futter zurückgelegt.",
+					GameState.supplies.food_stock]
+			else:
+				message = "Wasser zurückgegeben. Die Hände sind frei."
+		_finish_supply_action(error, message)
+	elif item.kind == "litter":
+		if not simulation.held_cat_id.is_empty():
+			hud.show_toast("Setze zuerst die Katze ab.")
+		elif simulation.item_in_use(item.id):
+			hud.show_toast("Bitte warten, bis die Katze fertig ist.")
+		else:
+			item.dirt = 0
+			AudioManager.play_sfx_varied("care")
+			hud.show_toast("Das Katzenklo ist wieder sauber.")
+			_save()
+	elif not GameState.supplies.cargo_kind.is_empty():
+		hud.show_toast(_cargo_return_hint())
+	elif simulation.held_cat_id.is_empty():
+		hud.show_toast("Trage zuerst eine Katze zur Pflege hierher.")
+	elif not simulation.begin_care(item):
+		hud.show_toast("Die Station ist gerade nicht frei.")
+
+func _finish_supply_action(error: String, message: String, sound: String = "care") -> void:
+	if not error.is_empty():
+		hud.show_toast(error)
+		return
+	AudioManager.play_sfx_varied(sound)
+	hud.show_toast(message)
+	_save()
 
 func _update_held_visual() -> void:
-	_held_sprite.visible = not simulation.held_cat_id.is_empty()
-	if not _held_sprite.visible:
-		return
 	var cat := simulation.cat_by_id(simulation.held_cat_id)
+	_held_sprite.visible = cat != null
+	if cat == null:
+		return
 	_held_atlas.region = Rect2(0, cat.fur_variant * 16, 16, 16)
 	_held_sprite.position = Vector2(0, -18)
 	if simulation.is_caring():
-		var state: HomeCatState = GameState.home.cats[cat.id]
+		var state: HomeCatState = GameState.home.cats.get(cat.id)
+		if state == null:
+			return
 		var item := GameState.home.item_by_id(state.target_id)
-		_held_sprite.global_position = item.center() + Vector2(0, -5)
+		if item != null:
+			_held_sprite.global_position = item.center() + Vector2(0, -5)
 
 func _pause_or_cancel() -> void:
 	if not hud.modal_kind.is_empty():
@@ -357,10 +533,18 @@ func _toggle_furnishing() -> void:
 		_cancel_placement()
 	elif not simulation.held_cat_id.is_empty():
 		hud.show_toast("Setze die Katze erst ab, bevor du das Haus einrichtest.")
+	elif not GameState.supplies.cargo_kind.is_empty():
+		hud.show_toast(_cargo_return_hint() + " Danach kannst du einrichten.")
 	else:
 		_open_modal("furnish")
 
 func start_placement(id: String) -> void:
+	if not GameState.supplies.cargo_kind.is_empty():
+		hud.show_toast(_cargo_return_hint() + " Danach kannst du einrichten.")
+		return
+	if not simulation.held_cat_id.is_empty():
+		hud.show_toast("Setze die Katze erst ab, bevor du das Haus einrichtest.")
+		return
 	var item := GameState.home.item_by_id(id)
 	if item == null or simulation.item_in_use(id):
 		hud.show_toast("Dieser Gegenstand kann gerade nicht versetzt werden.")
@@ -457,6 +641,16 @@ func _on_cat_adopted(cat: CatData, reward: int) -> void:
 	AudioManager.play_sfx("adopt")
 	hud.show_toast("%s hat ein Zuhause gefunden! +%d Münzen" % [cat.cat_name, reward])
 	_save()
+
+func _on_cat_died(cat: CatData) -> void:
+	hud.set_cat_status(null)
+	_sync_cats()
+	hud.show_toast("%s ist gestorben. Die übrigen Katzen brauchen weiter deine Fürsorge." % cat.cat_name)
+	_save()
+
+func _on_supplies_changed() -> void:
+	_update_parcels()
+	hud.refresh()
 
 func _save() -> void:
 	GameState.home.player_position = player.position

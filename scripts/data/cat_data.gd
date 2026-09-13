@@ -10,6 +10,14 @@ enum State {
 	CARRIED,  ## Wird gerade getragen
 	AT_HOME,  ## Lebt und wird zu Hause gepflegt
 	ADOPTED,  ## Genesen und vermittelt
+	DEAD,     ## Durch Vernachlaessigung gestorben
+}
+
+enum Age { YOUNG, ADULT, SENIOR }
+const AGE_NAMES: PackedStringArray = ["Jungtier", "Erwachsen", "Senior"]
+const NUMERIC_DEFAULTS := {
+	"shyness": 0.5, "hunger": 50.0, "thirst": 50.0, "cleanliness": 50.0,
+	"health": 50.0, "enrichment": 100.0, "recovery_timer": 0.0,
 }
 
 ## Beduerfnisse laufen immer von 0 (ganz schlecht) bis 100 (bestens).
@@ -34,6 +42,8 @@ const NAMES: PackedStringArray = [
 @export var cat_name: String = ""
 @export_range(0, FUR_VARIANTS - 1) var fur_variant: int = 0
 @export var state: State = State.WILD
+@export var age_group: Age = Age.ADULT
+@export var critical_elapsed: float = 0.0
 
 ## 0.0 = laeuft dir direkt zu, 1.0 = sehr schreckhaft.
 @export_range(0.0, 1.0) var shyness: float = 0.5
@@ -56,6 +66,7 @@ static func create_random() -> CatData:
 	cat.fur_variant = randi() % FUR_VARIANTS
 	cat.shyness = randf_range(0.15, 0.95)
 	cat.state = State.WILD
+	cat.age_group = randi_range(Age.YOUNG, Age.SENIOR) as Age
 	# Streuner sind hungrig, durstig und verdreckt -- aber nie voellig am Ende.
 	cat.hunger = randf_range(10.0, 40.0)
 	cat.thirst = randf_range(10.0, 40.0)
@@ -95,6 +106,12 @@ func all_needs_met() -> bool:
 func recovery_progress() -> float:
 	return clampf(recovery_timer / RECOVERY_SECONDS, 0.0, 1.0)
 
+func is_starving() -> bool:
+	return is_zero_approx(hunger) or is_zero_approx(thirst)
+
+func age_title() -> String:
+	return AGE_NAMES[age_group]
+
 
 func to_dict() -> Dictionary:
 	return {
@@ -102,6 +119,8 @@ func to_dict() -> Dictionary:
 		"cat_name": cat_name,
 		"fur_variant": fur_variant,
 		"state": int(state),
+		"age_group": int(age_group),
+		"critical_elapsed": critical_elapsed,
 		"shyness": shyness,
 		"hunger": hunger,
 		"thirst": thirst,
@@ -113,11 +132,28 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary) -> CatData:
+	var age: Variant = data.get("age_group", Age.ADULT)
+	var critical: Variant = data.get("critical_elapsed", 0.0)
+	var stored_state: Variant = data.get("state", State.AT_HOME)
+	if not SupplyCatalog.is_count(age) or int(age) > Age.SENIOR \
+			or not SupplyCatalog.is_count(stored_state) or int(stored_state) > State.DEAD \
+			or not (critical is float or critical is int) \
+			or not is_finite(float(critical)) or float(critical) < 0.0:
+		return null
+	for key: String in NUMERIC_DEFAULTS:
+		var value: Variant = data.get(key, NUMERIC_DEFAULTS[key])
+		if not (value is float or value is int) or not is_finite(float(value)):
+			return null
+	if data.get("id", "") is not String or data.get("cat_name", "") is not String \
+			or not SupplyCatalog.is_count(data.get("fur_variant", 0)):
+		return null
 	var cat := CatData.new()
 	cat.id = String(data.get("id", ""))
 	cat.cat_name = String(data.get("cat_name", "Katze"))
 	cat.fur_variant = clampi(int(data.get("fur_variant", 0)), 0, FUR_VARIANTS - 1)
-	cat.state = int(data.get("state", State.AT_HOME)) as State
+	cat.state = int(stored_state) as State
+	cat.age_group = int(age) as Age
+	cat.critical_elapsed = float(critical)
 	cat.shyness = clampf(float(data.get("shyness", 0.5)), 0.0, 1.0)
 	cat.hunger = clampf(float(data.get("hunger", 50.0)), 0.0, NEED_MAX)
 	cat.thirst = clampf(float(data.get("thirst", 50.0)), 0.0, NEED_MAX)
