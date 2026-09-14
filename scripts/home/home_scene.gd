@@ -3,9 +3,6 @@ extends Node2D
 
 const REACH := 24.0
 const CAMERA_BOTTOM_MARGIN := 64
-const INTERACTION_ITEMS: PackedStringArray = [
-	"food", "water", "litter", "pantry", "faucet", "wash", "vet",
-]
 const RELEASE_ACTIONS: PackedStringArray = [
 	"move_left", "move_right", "move_up", "move_down", "interact", "sprint",
 	"home_furnish", "home_rotate", "home_store",
@@ -30,6 +27,7 @@ var _focus_kind: String = ""
 var _preview: HomeItemActor
 var _preview_error: String = ""
 var _input_delay: float = 0.0
+var _context: InteractionContext
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -37,6 +35,7 @@ func _ready() -> void:
 	simulation = GameState.home_simulation
 	simulation.sync_cats()
 	GameState.simulation_active = true
+	_context = InteractionContext.new(simulation, _toast, _finish_supply_action, _save)
 	player.position = GameState.home.player_position
 	var camera: Camera2D = player.get_node("Camera")
 	camera.zoom = Vector2(1.5, 1.5)
@@ -193,6 +192,7 @@ func _bind_simulation() -> void:
 	_cat_actors.clear()
 	simulation = GameState.home_simulation
 	simulation.care_finished.connect(_on_care_finished)
+	_context.simulation = simulation
 	player.position = GameState.home.player_position
 
 func _process(delta: float) -> void:
@@ -262,7 +262,7 @@ func _resolve_focus() -> void:
 		_focus_kind = "drop"
 		hint = "%s absetzen\nZum Waschen oder Behandeln tragen." % held.cat_name
 	elif carrying:
-		hint = "%s\n%s" % [GameState.supplies.cargo_text(), _cargo_destination()]
+		hint = "%s\n%s" % [GameState.supplies.cargo_text(), SupplyCatalog.cargo_destination(GameState.supplies.cargo_kind)]
 	for actor: HomeCatActor in _cat_actors.values():
 		actor.selected = false
 		if holding or carrying:
@@ -284,7 +284,7 @@ func _resolve_focus() -> void:
 		var actor: HomeItemActor = _item_actors.get(item.id)
 		if actor != null:
 			actor.selected = false
-		if not INTERACTION_ITEMS.has(item.kind):
+		if not InteractionRegistry.has(item.kind):
 			continue
 		if _focus_kind == "cat" and item.kind in ["food", "water"] \
 				and item.stock == HomeCatalog.capacity(item.kind):
@@ -306,7 +306,7 @@ func _resolve_focus() -> void:
 		if holding:
 			hint = "Paket abholen\nSetze zuerst die Katze ab."
 		elif carrying:
-			hint = "Paket abholen\n" + _cargo_return_hint()
+			hint = "Paket abholen\n" + SupplyCatalog.cargo_return_hint(GameState.supplies.cargo_kind)
 	var exit_point := HomeCatalog.world(HomeCatalog.ENTRY)
 	# Die Tuer gewinnt bei gleicher Entfernung; Pakete blockieren den Ausgang nie.
 	if not holding and player.position.distance_to(exit_point) <= closest and _clear_line(exit_point):
@@ -315,7 +315,7 @@ func _resolve_focus() -> void:
 		hint = "Rausgehen\nKatzen retten oder Futter im Laden holen."
 	if _focus_kind == "cat":
 		(_cat_actors[_focus_id] as HomeCatActor).selected = true
-	elif INTERACTION_ITEMS.has(_focus_kind) and _item_actors.has(_focus_id):
+	elif InteractionRegistry.has(_focus_kind) and _item_actors.has(_focus_id):
 		(_item_actors[_focus_id] as HomeItemActor).selected = true
 	_update_parcels()
 	var observed: CatData
@@ -328,74 +328,26 @@ func _resolve_focus() -> void:
 	hud.set_hint(shortcut + hint)
 	_touch.call("set_action_label", hint.get_slice("\n", 0) if not _focus_kind.is_empty() else "Interaktion")
 
+## Hinweistext des anvisierten Gegenstands; der Text gehoert der Interaktion.
 func _item_hint(item: HomeItemData, holding: bool) -> String:
-	match item.kind:
-		"food", "water":
-			var title := "Futter nachfüllen" if item.kind == "food" else "Wasser nachfüllen"
-			var detail := "Futter zuerst am Schrank holen." if item.kind == "food" \
-				else "Wasser zuerst am Hahn holen."
-			if holding:
-				detail = "Setze zuerst die Katze ab."
-			elif item.stock == HomeCatalog.capacity(item.kind):
-				detail = "Dieser Napf ist schon voll."
-			elif GameState.supplies.cargo_kind == "package":
-				detail = "Paket zuerst im Schrank einräumen."
-			elif GameState.supplies.cargo_kind == item.kind:
-				detail = "%d Portionen auf dem Arm." % GameState.supplies.cargo_amount
-			return "%s\nNapf: %d/%d · %s" % [
-				title, item.stock, HomeCatalog.capacity(item.kind), detail]
-		"pantry":
-			var title := "Futter holen"
-			if GameState.supplies.cargo_kind == "package":
-				title = "Paket einräumen"
-			elif GameState.supplies.cargo_kind == "food":
-				title = "Futter zurücklegen"
-			var detail := "Vorrat: %d Portionen · Für alle Schränke gemeinsam." % GameState.supplies.food_stock
-			if holding:
-				detail = "Setze zuerst die Katze ab."
-			elif GameState.supplies.cargo_kind == "water":
-				detail = "Wasser zuerst am Hahn zurückgeben."
-			elif GameState.supplies.food_stock == 0 and GameState.supplies.cargo_kind.is_empty():
-				detail = "Schrank leer: im Laden holen oder unter Vorräte bestellen."
-			return "%s\n%s" % [title, detail]
-		"faucet":
-			var title := "Wasser zurückgeben" if GameState.supplies.cargo_kind == "water" else "Wasser holen"
-			var detail := "Kostenlos · Zum Wassernapf tragen."
-			if holding:
-				detail = "Setze zuerst die Katze ab."
-			elif GameState.supplies.cargo_kind in ["food", "package"]:
-				detail = "Futter zuerst im Schrank einräumen."
-			return "%s\n%s" % [title, detail]
-		"litter":
-			return "Katzenklo reinigen\n" + ("Setze zuerst die Katze ab." if holding else (
-				"Die Streu ist sauber." if item.dirt == 0 else "Frische Streu wird gebraucht."))
-		"wash", "vet":
-			var title := "Katze waschen" if item.kind == "wash" else "Katze behandeln"
-			var detail := "Sanfte Pflege · kostenlos." if holding else "Trage zuerst eine Katze hierher."
-			return "%s\n%s" % [title, detail]
-	return ""
+	var handler := InteractionRegistry.handler(item.kind)
+	if handler == null:
+		return ""
+	_context.item = item
+	_context.holding = holding
+	return handler.hint(_context)
 
-func _cargo_destination() -> String:
-	match GameState.supplies.cargo_kind:
-		"food": return "Zum Futternapf tragen; Reste am Schrank zurücklegen."
-		"water": return "Zum Wassernapf tragen; Reste am Hahn zurückgeben."
-		"package": return "Paket zuerst am Vorratsschrank einräumen."
-	return ""
-
-func _cargo_return_hint() -> String:
-	match GameState.supplies.cargo_kind:
-		"food": return "Lege das Futter zuerst im Vorratsschrank zurück."
-		"water": return "Gib das Wasser zuerst am Hahn zurück."
-		"package": return "Räume das Paket zuerst im Vorratsschrank ein."
-	return ""
 
 func interact() -> void:
 	if get_tree().paused or simulation.is_caring():
 		return
+	if InteractionRegistry.has(_focus_kind):
+		_interact_item()
+		return
 	match _focus_kind:
 		"cat":
 			if not GameState.supplies.cargo_kind.is_empty():
-				hud.show_toast(_cargo_return_hint())
+				hud.show_toast(SupplyCatalog.cargo_return_hint(GameState.supplies.cargo_kind))
 			elif simulation.pick_up(_focus_id):
 				AudioManager.play_sfx("pickup")
 			else:
@@ -406,8 +358,6 @@ func interact() -> void:
 				hud.show_toast("Hier ist kein freier Platz zum Absetzen.")
 			else:
 				_save()
-		"food", "water", "litter", "pantry", "faucet", "wash", "vet":
-			_interact_item()
 		"parcel":
 			var error := GameState.collect_delivery()
 			_finish_supply_action(error,
@@ -416,47 +366,28 @@ func interact() -> void:
 		"exit":
 			SceneRouter.goto_rescue()
 		_:
-			hud.show_toast(_cargo_destination() if not GameState.supplies.cargo_kind.is_empty() \
+			hud.show_toast(SupplyCatalog.cargo_destination(GameState.supplies.cargo_kind) \
+				if not GameState.supplies.cargo_kind.is_empty() \
 				else "Geh näher an eine Katze oder an die Bedienseite eines Gegenstands.")
 
+## Reicht die Bedienung an die Interaktion der Gegenstandsart weiter.
 func _interact_item() -> void:
 	var item := GameState.home.item_by_id(_focus_id)
 	if item == null or not item.placed:
 		hud.show_toast("Dieser Gegenstand ist nicht mehr aufgestellt.")
 		return
-	if item.kind in ["food", "water"]:
-		var before := item.stock
-		var error := GameState.refill_bowl(item.id)
-		_finish_supply_action(error, "%d Portionen eingefüllt. %s." % [
-			item.stock - before, GameState.supplies.cargo_text()])
-	elif item.kind in SupplyCatalog.FIXTURES:
-		var previous := GameState.supplies.cargo_kind
-		var error := GameState.use_supply_station(item.id)
-		var message := GameState.supplies.cargo_text() + ". " + _cargo_destination()
-		if GameState.supplies.cargo_kind.is_empty():
-			if item.kind == "pantry":
-				message = "%s Vorrat: %d Portionen." % [
-					"Paket eingeräumt." if previous == "package" else "Futter zurückgelegt.",
-					GameState.supplies.food_stock]
-			else:
-				message = "Wasser zurückgegeben. Die Hände sind frei."
-		_finish_supply_action(error, message)
-	elif item.kind == "litter":
-		if not simulation.held_cat_id.is_empty():
-			hud.show_toast("Setze zuerst die Katze ab.")
-		elif simulation.item_in_use(item.id):
-			hud.show_toast("Bitte warten, bis die Katze fertig ist.")
-		else:
-			item.dirt = 0
-			AudioManager.play_sfx_varied("care")
-			hud.show_toast("Das Katzenklo ist wieder sauber.")
-			_save()
-	elif not GameState.supplies.cargo_kind.is_empty():
-		hud.show_toast(_cargo_return_hint())
-	elif simulation.held_cat_id.is_empty():
-		hud.show_toast("Trage zuerst eine Katze zur Pflege hierher.")
-	elif not simulation.begin_care(item):
-		hud.show_toast("Die Station ist gerade nicht frei.")
+	var handler := InteractionRegistry.handler(item.kind)
+	if handler == null:
+		return
+	_context.item = item
+	_context.holding = not simulation.held_cat_id.is_empty()
+	handler.perform(_context)
+
+
+## Meldung an den Spieler; als Callable an die Interaktionen gereicht.
+func _toast(text: String) -> void:
+	hud.show_toast(text)
+
 
 func _finish_supply_action(error: String, message: String, sound: String = "care") -> void:
 	if not error.is_empty():
@@ -541,13 +472,13 @@ func _toggle_furnishing() -> void:
 	elif not simulation.held_cat_id.is_empty():
 		hud.show_toast("Setze die Katze erst ab, bevor du das Haus einrichtest.")
 	elif not GameState.supplies.cargo_kind.is_empty():
-		hud.show_toast(_cargo_return_hint() + " Danach kannst du einrichten.")
+		hud.show_toast(SupplyCatalog.cargo_return_hint(GameState.supplies.cargo_kind) + " Danach kannst du einrichten.")
 	else:
 		_open_modal("furnish")
 
 func start_placement(id: String) -> void:
 	if not GameState.supplies.cargo_kind.is_empty():
-		hud.show_toast(_cargo_return_hint() + " Danach kannst du einrichten.")
+		hud.show_toast(SupplyCatalog.cargo_return_hint(GameState.supplies.cargo_kind) + " Danach kannst du einrichten.")
 		return
 	if not simulation.held_cat_id.is_empty():
 		hud.show_toast("Setze die Katze erst ab, bevor du das Haus einrichtest.")

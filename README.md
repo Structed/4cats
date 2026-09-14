@@ -372,6 +372,36 @@ Klicken.
 `ui.button(text, name)` geht durch dieselbe Fabrik wie alle anderen Knöpfe,
 Symbole und Icon-Modi gelten also automatisch auch hier.
 
+### Bedienbare Gegenstände im Haus
+
+Was beim Blick auf einen Gegenstand steht und was `E` dort auslöst, liegt in
+`scripts/home/interactions/` – eine Datei je Gegenstandsart, eingetragen in
+`InteractionRegistry.HANDLERS`:
+
+```gdscript
+class_name LitterInteraction
+extends ItemInteraction
+
+func hint(context: InteractionContext) -> String:
+    return "Katzenklo reinigen\n…"
+
+func perform(context: InteractionContext) -> void:
+    context.item.dirt = 0
+    context.toast("Das Katzenklo ist wieder sauber.")
+    context.save()
+```
+
+Vorher waren für einen neuen bedienbaren Gegenstand fünf Änderungen an
+`home_scene.gd` nötig: die Liste der bedienbaren Arten, der Hinweistext im
+`match`, der Zweig in `interact()` und der in `_interact_item()`. Jetzt kennt
+die Szene keine einzige Gegenstandsart mehr namentlich.
+
+Die Interaktion bekommt über `InteractionContext` nur, was sie wirklich
+braucht – den Gegenstand, ob eine Katze getragen wird, die Simulation und
+Rückmeldungen (`toast`, `supply_result`, `save`). Sie kennt weder HUD noch
+Szene und ist deshalb ohne Spielwelt prüfbar: `tools/test_interactions.gd`
+baut die Hinweise aller Arten ohne eine einzige Szene.
+
 ### Technische Eckdaten
 - **Godot 4.7.2**, GDScript
 - Renderer `gl_compatibility` (OpenGL ES 3.0) – größte Abdeckung auf Android
