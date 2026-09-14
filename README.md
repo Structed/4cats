@@ -269,7 +269,7 @@ scripts/
   data/                  Katzen, Hauszustand, Vorräte, Lieferungen und Schwierigkeitsregeln
   rescue/                Spieler, Katzen-Verhalten, Level-Erzeugung, Gefahren
   home/                  Haus-Simulation, Wegfindung, Einrichtung, Versorgung, Pflege und HUD
-  ui/                    Menü, HUD, virtueller Joystick
+  ui/                    Menü, HUD, virtueller Joystick, Knopf-Fabrik (`ui_kit.gd`)
   dev/                   Entwicklungshilfen (nicht Teil des Spiels)
 resources/               TileSet und UI-Design
 assets/                  Grafik und Ton (siehe CREDITS.md)
@@ -281,8 +281,45 @@ tools/                   Skripte zum Bauen, Prüfen und Erzeugen von Assets
   workflows/android.yml  Signiertes APK und Release nach PR-Merge in main
 ```
 
-### Technische Eckdaten
+### Bedienelemente und Symbole
 
+Knöpfe entstehen nicht mehr an jeder Stelle einzeln, sondern über die Fabrik
+`scripts/ui/ui_kit.gd`. Sie setzt Schriftgröße, Mindesthöhe und Symbol an einem
+Ort. Welcher Knopf welches Symbol bekommt, steht als Daten in
+`scripts/ui/icon_set.gd` — **ein Symbol zu ergänzen ist ein Eintrag dort und
+keine Änderung an der Stelle, an der der Knopf gebaut wird.**
+
+```powershell
+# Symbolatlas erzeugen (assets/sprites/ui_icons.png)
+pwsh tools/generate_ui_icons.ps1
+
+# Nach dem Erzeugen einmal importieren, sonst findet Godot die Datei nicht
+pwsh tools/godot.ps1 --headless --path . --import
+```
+
+Es gibt drei Darstellungsarten. Voreingestellt ist `text`, das Spiel sieht also
+unverändert aus, bis jemand umschaltet:
+
+| Einstellung `button_icons` | Wirkung |
+| --- | --- |
+| `text` | nur Beschriftung (Voreinstellung) |
+| `both` | Symbol neben der Beschriftung |
+| `icon` | nur Symbol, die Beschriftung wandert in den Tooltip |
+
+Zum Ausprobieren gibt es `--buttons=`; die Testläufe schreiben ihre
+Einstellungen in ein Wegwerf-Verzeichnis, deshalb wirkt dort nur der Schalter:
+
+```powershell
+pwsh tools/godot.ps1 --path . -- --start=home --buttons=both
+pwsh tools/screenshot.ps1 -Scene menu -OutputPath menu.png -Buttons icon
+```
+
+Beschriftungen, die sich zur Laufzeit ändern, gehören über
+`UiKit.set_button_text()` gesetzt — eine direkte Zuweisung an `.text` würde in
+der Darstellung `icon` wieder Text einblenden. `tools/test_ui_kit.gd` sichert
+das zusammen mit der Vollständigkeit der Symbolzuordnung ab.
+
+### Technische Eckdaten
 - **Godot 4.7.2**, GDScript
 - Renderer `gl_compatibility` (OpenGL ES 3.0) – größte Abdeckung auf Android
 - Basisauflösung 640 × 360, Streckmodus `canvas_items` mit `expand`, damit
@@ -327,6 +364,7 @@ Die Katzen-Sprites entstehen aus Pixelkarten und lassen sich einzeln neu erzeuge
 pwsh tools/generate_cat_sprites.ps1
 pwsh tools/generate_tileset.ps1
 pwsh tools/generate_icons.ps1
+pwsh tools/generate_ui_icons.ps1
 pwsh tools/generate_home_assets.ps1
 ```
 
@@ -364,6 +402,10 @@ pwsh tools/godot.ps1 --headless --path . -- --smoketest
 
 # Nur Hauptmenü und alle drei Moduswechsel beim Neustart
 pwsh tools\godot.ps1 --headless --path . -- --smoketest --suite=menus
+
+# Derselbe Durchlauf ohne jede Beschriftung; deckt auf, wo ein Test
+# noch am Knopftext statt am Knotennamen haengt
+pwsh tools\godot.ps1 --headless --path . -- --smoketest --buttons=icon
 
 # Alle Skripte auf Übersetzungsfehler prüfen
 pwsh tools/lint_scripts.ps1

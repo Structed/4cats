@@ -27,6 +27,8 @@ var _movement_hint: Label
 func _ready() -> void:
 	layer = 5
 	_forced = bool(SaveManager.load_settings().get(SETTING_KEY, false))
+	UiKit.decorate(_action_button)
+	UiKit.decorate(_sprint_button)
 	_apply_visibility()
 
 	_action_button.button_down.connect(_on_action_down)
@@ -93,12 +95,8 @@ func configure_home() -> void:
 
 func _home_button(caption: String, node_name: String, action: String,
 		top: float, bottom: float) -> Button:
-	var button := Button.new()
-	button.name = node_name
-	button.text = caption
-	button.add_theme_font_size_override("font_size", 12)
+	var button := UiKit.button(caption, node_name, $Root, 12, 0)
 	button.focus_mode = Control.FOCUS_NONE
-	$Root.add_child(button)
 	button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	button.offset_left = -104
 	button.offset_right = -14
@@ -112,7 +110,7 @@ func _home_button(caption: String, node_name: String, action: String,
 
 
 func set_action_label(text: String) -> void:
-	_action_button.text = text.replace(" ", "\n")
+	UiKit.set_button_text(_action_button, text.replace(" ", "\n"))
 
 
 func set_building(building: bool) -> void:

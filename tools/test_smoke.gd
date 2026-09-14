@@ -477,7 +477,8 @@ func _test_analytics_menu() -> void:
 			and panel.get_global_rect().encloses(decline.get_global_rect())
 			and panel.get_global_rect().encloses(details.get_global_rect()),
 			"Einwilligung und beide Knoepfe passen bei %s ins Bild" % window_size)
-		_check(not accept.disabled and accept.text == "Ja, erlauben" and decline.text == "Nein danke"
+		_check(not accept.disabled and UiKit.button_text(accept) == "Ja, erlauben"
+			and UiKit.button_text(decline) == "Nein danke"
 			and is_equal_approx(accept.size.x, decline.size.x),
 			"Zustimmung und Ablehnung sind gleichwertig erreichbar")
 		_check(message.text == AnalyticsConsent.SUMMARY and message.get_content_height() <= message.size.y,
@@ -487,7 +488,7 @@ func _test_analytics_menu() -> void:
 		_send_ui_action(&"ui_accept")
 		await _wait(0.1)
 		_check(message.text == String(service.call("privacy_text"))
-			and details.text == "Zurück zur Kurzfassung"
+			and UiKit.button_text(details) == "Zurück zur Kurzfassung"
 			and bounds.encloses(panel.get_global_rect()),
 			"Vollstaendige Datenschutzangaben bleiben vor der Freigabe zugaenglich")
 		_check_focus_within(panel, "Datenschutzdetails bei %s" % window_size)
@@ -577,7 +578,8 @@ func _test_analytics_first_start(suite: GDScript) -> void:
 			and not bool(service.call("needs_consent")) and state["distinct_id"] == previous_id,
 			"Nach Neustart bleibt die Entscheidung %s ohne erneute Abfrage erhalten" % allow)
 		var analytics_button: Button = menu.get("_analytics_button")
-		_check(analytics_button.text == "Nutzungsanalyse: " + ("an" if allow else "aus"),
+		_check(UiKit.button_text(analytics_button)
+				== "Nutzungsanalyse: " + ("an" if allow else "aus"),
 			"Die Optionen zeigen die gespeicherte Freigabeentscheidung")
 		menu.queue_free()
 		await _wait(0.1)

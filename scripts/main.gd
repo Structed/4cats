@@ -8,6 +8,7 @@
 ## Fehlen wird sauber abgefangen:
 ##   godot --path . -- --start=rescue
 ##   godot --path . -- --start=home --demo
+##   godot --path . -- --start=home --buttons=icon
 ##   godot --path . -- --start=home --screenshot=C:/temp/bild.png
 ##   godot --headless --path . -- --test
 extends Node
@@ -31,6 +32,8 @@ func _ready() -> void:
 	# Einen Frame warten, damit alle Autoloads sicher initialisiert sind.
 	await get_tree().process_frame
 
+	_apply_button_style()
+
 	# Die Testlaeufe ersetzen den normalen Start.
 	if _run_dev_entry_point("--test", GAMEPLAY_TESTS_PATH):
 		return
@@ -49,6 +52,21 @@ func _ready() -> void:
 		SceneRouter.goto_main_menu()
 	else:
 		SceneRouter.goto_scene(target)
+
+
+## Erzwingt die Darstellungsart der Knoepfe ueber `--buttons=text|both|icon`.
+##
+## Die Testlaeufe schreiben ihre Einstellungen in ein Wegwerf-Verzeichnis; ohne
+## diesen Schalter liesse sich die Symboldarstellung dort nie ausprobieren.
+func _apply_button_style() -> void:
+	var key := _argument_value("--buttons=")
+	if key.is_empty():
+		return
+	if not UiKit.MODE_NAMES.has(key):
+		push_warning("Unbekannte Knopfdarstellung: %s" % key)
+		return
+	var mode: UiKit.IconMode = UiKit.MODE_NAMES[key]
+	UiKit.set_icon_mode(mode)
 
 
 ## Wertet `--start=<szene>` aus den Kommandozeilenargumenten aus.

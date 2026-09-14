@@ -41,7 +41,11 @@ param(
     [string]$RescueView = 'play',
 
     [ValidateSet('relaxed', 'challenging', 'realistic')]
-    [string]$DemoMode = 'relaxed'
+    [string]$DemoMode = 'relaxed',
+
+    ## Darstellungsart der Knoepfe; siehe UiKit.IconMode.
+    [ValidateSet('default', 'text', 'both', 'icon')]
+    [string]$Buttons = 'default'
 )
 
 Set-StrictMode -Version Latest
@@ -80,6 +84,7 @@ elseif ($DemoMode -ne 'relaxed' -or $HomeView -in @('parcel', 'critical')) {
     throw 'DemoMode und die Paket-/Risikovorschau brauchen -Demo.'
 }
 if ($Touch) { $arguments += '--touch-preview' }
+if ($Buttons -ne 'default') { $arguments += "--buttons=$Buttons" }
 if ($MenuView -notin @('play', 'default')) {
     if ($Scene -ne 'menu') { throw 'MenuView ist nur fuer das Hauptmenue verfuegbar.' }
     $arguments += "--menu-preview=$MenuView"

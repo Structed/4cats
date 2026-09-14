@@ -48,6 +48,10 @@ func _ready() -> void:
 	_care_alerts.name = "CareAlerts"
 	add_child(_care_alerts)
 	move_child(_care_alerts, _pause_dim.get_index())
+	for scene_button: Button in [
+		_home_button, _resume_button, _to_home_button, _to_menu_button,
+	]:
+		UiKit.decorate(scene_button)
 	_build_shop_dialog()
 
 	GameState.carried_changed.connect(_on_carried_changed)
@@ -189,12 +193,8 @@ func _build_shop_dialog() -> void:
 	_shop_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_shop_message.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(_shop_message)
-	_shop_close = Button.new()
-	_shop_close.name = "CloseShopButton"
-	_shop_close.text = "Schließen · Esc"
-	_shop_close.custom_minimum_size.y = 32
+	_shop_close = UiKit.button("Schließen · Esc", "CloseShopButton", box, 0, 32)
 	_shop_close.pressed.connect(close_shop)
-	box.add_child(_shop_close)
 	var ring := StyleBoxFlat.new()
 	ring.bg_color = Color.TRANSPARENT
 	ring.border_color = Color("#ffe5b4")

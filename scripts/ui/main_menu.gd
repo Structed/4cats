@@ -48,6 +48,11 @@ func _ready() -> void:
 	_continue_button.visible = SaveManager.has_save()
 	# Auf Handys gibt es keinen sinnvollen „Beenden"-Knopf.
 	_quit_button.visible = OS.get_name() not in ["Android", "iOS", "Web"]
+	for scene_button: Button in [
+		_continue_button, _new_game_button, _options_button, _quit_button,
+		_credits_button, _credits_close, _options_close, _confirm_yes, _confirm_no,
+	]:
+		UiKit.decorate(scene_button)
 
 	_continue_button.pressed.connect(_on_continue_pressed)
 	_new_game_button.pressed.connect(_on_new_game_pressed)
@@ -241,11 +246,8 @@ func _on_touch_toggled(pressed: bool) -> void:
 
 
 func _build_analytics_ui() -> void:
-	_analytics_button = Button.new()
-	_analytics_button.name = "AnalyticsButton"
-	_analytics_button.add_theme_font_size_override("font_size", 12)
 	var box := _options_close.get_parent()
-	box.add_child(_analytics_button)
+	_analytics_button = UiKit.button("", "AnalyticsButton", box, 12)
 	box.move_child(_analytics_button, _options_close.get_index())
 	_analytics_dialog = AnalyticsConsent.new()
 	_analytics_dialog.name = "AnalyticsDialog"
@@ -259,7 +261,8 @@ func _build_analytics_ui() -> void:
 
 
 func _refresh_analytics() -> void:
-	_analytics_button.text = "Nutzungsanalyse: " + ("an" if _analytics_service.has_consent() else "aus")
+	UiKit.set_button_text(_analytics_button,
+		"Nutzungsanalyse: " + ("an" if _analytics_service.has_consent() else "aus"))
 
 
 func _show_analytics() -> void:

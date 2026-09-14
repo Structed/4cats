@@ -20,7 +20,7 @@ func _ready() -> void:
 	add_child(_buy)
 	if not delivery:
 		_emergency = _button("EmergencyFoodButton")
-		_emergency.text = "Kleine Notration abholen · kostenlos"
+		UiKit.set_button_text(_emergency, "Kleine Notration abholen · kostenlos")
 		_emergency.pressed.connect(_claim_emergency)
 		add_child(_emergency)
 	_status = _label("")
@@ -37,19 +37,12 @@ func _process(delta: float) -> void:
 		refresh()
 
 func _label(text: String) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.add_theme_font_size_override("font_size", 12)
+	var label := UiKit.label(text, 12)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return label
 
 func _button(node_name: String) -> Button:
-	var button := Button.new()
-	button.name = node_name
-	button.custom_minimum_size.y = 32
-	button.add_theme_font_size_override("font_size", 12)
-	return button
+	return UiKit.button("", node_name, null, 12, 32)
 
 func refresh() -> void:
 	if not is_node_ready():
@@ -58,7 +51,8 @@ func refresh() -> void:
 	_price.text = "Futterpaket · %d Portionen\nFutter: %d Münzen%s\nDu hast %d Münzen." % [
 		SupplyCatalog.PACKAGE_UNITS, GameState.food_price(),
 		" · Lieferung: %d Münzen" % GameState.delivery_fee() if delivery else "", GameState.coins]
-	_buy.text = "Bestellen · %d Münzen" % cost if delivery else "Paket mitnehmen · %d Münzen" % cost
+	UiKit.set_button_text(_buy, "Bestellen · %d Münzen" % cost if delivery \
+		else "Paket mitnehmen · %d Münzen" % cost)
 	_buy.disabled = GameState.coins < cost or (
 		not delivery and not GameState.supply_actions.free_hands_error().is_empty())
 	if _emergency != null:

@@ -50,14 +50,10 @@ func _ready() -> void:
 	_message.add_theme_font_size_override("normal_font_size", 12)
 	_message.selection_enabled = true
 	box.add_child(_message)
-	_details = Button.new()
-	_details.name = "PrivacyDetails"
+	_details = UiKit.button("", "PrivacyDetails", box, 12, 24)
 	_details.flat = true
 	_details.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_details.custom_minimum_size.y = 24
-	_details.add_theme_font_size_override("font_size", 12)
 	_details.pressed.connect(_toggle_details)
-	box.add_child(_details)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_font_size_override("font_size", 11)
@@ -65,16 +61,10 @@ func _ready() -> void:
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 10)
 	box.add_child(buttons)
-	_accept = Button.new()
-	_accept.name = "Accept"
+	_accept = UiKit.button("", "Accept", buttons, 0, 30)
 	_accept.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_accept.custom_minimum_size.y = 30
-	buttons.add_child(_accept)
-	_decline = Button.new()
-	_decline.name = "Decline"
+	_decline = UiKit.button("", "Decline", buttons, 0, 30)
 	_decline.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_decline.custom_minimum_size.y = 30
-	buttons.add_child(_decline)
 	_accept.pressed.connect(_choose.bind(true))
 	_decline.pressed.connect(_decline_choice)
 	hide()
@@ -90,9 +80,10 @@ func present(service: Node) -> void:
 	if not available and _status.text.is_empty():
 		_status.text = "In diesem Build ist die Nutzungsanalyse nicht verfügbar."
 	_status.visible = not _status.text.is_empty()
-	_accept.text = "Weiter erlauben" if consent else "Ja, erlauben"
+	UiKit.set_button_text(_accept, "Weiter erlauben" if consent else "Ja, erlauben")
 	_accept.disabled = not available
-	_decline.text = "Widerrufen" if consent else ("Nein danke" if available else "Schließen")
+	UiKit.set_button_text(_decline,
+		"Widerrufen" if consent else ("Nein danke" if available else "Schließen"))
 	if not visible:
 		_previous_focus = get_viewport().gui_get_focus_owner()
 	_configure_focus(available)
@@ -108,7 +99,8 @@ func _toggle_details() -> void:
 func _refresh_message() -> void:
 	_message.text = String(_service.call("privacy_text")) if _show_details else SUMMARY
 	_message.scroll_to_line(0)
-	_details.text = "Zurück zur Kurzfassung" if _show_details else "Mehr zum Datenschutz"
+	UiKit.set_button_text(_details,
+		"Zurück zur Kurzfassung" if _show_details else "Mehr zum Datenschutz")
 
 
 func _configure_focus(available: bool) -> void:
@@ -148,8 +140,8 @@ func _choose(allow: bool) -> void:
 		_status.text = String(_service.get("last_error"))
 		_status.show()
 		_refresh_message()
-		_accept.text = "Ja, erlauben"
-		_decline.text = "Nein danke"
+		UiKit.set_button_text(_accept, "Ja, erlauben")
+		UiKit.set_button_text(_decline, "Nein danke")
 
 
 func _close() -> void:

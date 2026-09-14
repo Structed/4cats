@@ -177,30 +177,15 @@ func _process(delta: float) -> void:
 			_modal_notice.hide()
 
 func _label(text: String, font_size: int) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.add_theme_font_size_override("font_size", font_size)
-	return label
+	return UiKit.label(text, font_size)
+
 
 func _compact_panel_style() -> StyleBox:
-	var style := get_theme_stylebox("panel", "PanelContainer").duplicate() as StyleBox
-	style.content_margin_left = 6
-	style.content_margin_right = 6
-	style.content_margin_top = 4
-	style.content_margin_bottom = 4
-	return style
+	return UiKit.compact_panel_style(self)
+
 
 func _button(text: String, node_name: String, parent: Node) -> Button:
-	var button := Button.new()
-	button.text = text
-	button.name = node_name
-	button.add_theme_font_size_override("font_size", 12)
-	button.custom_minimum_size.y = 28
-	parent.add_child(button)
-	button.owner = self
-	button.unique_name_in_owner = true
-	return button
+	return UiKit.button(text, node_name, parent, 12, 28, self)
 
 func _build_cat_status() -> void:
 	_cat_panel = PanelContainer.new()
@@ -315,7 +300,8 @@ func show_toast(text: String) -> void:
 	_modal_notice.visible = not modal_kind.is_empty()
 
 func set_building(building: bool) -> void:
-	_furnish.text = "Abbrechen" if building else "Einrichten"
+	UiKit.set_button_text(_furnish, "Abbrechen" if building else "Einrichten")
+	UiKit.apply_icon(_furnish, "FurnishButton", "close" if building else "furnish")
 	set_hint("")
 	if building:
 		_cat_panel.hide()
@@ -359,6 +345,9 @@ func _populate() -> void:
 			var caption := "%s · %s" % [HomeCatalog.title(item.kind),
 				"versetzen" if item.placed else "aufstellen"]
 			var select := _button(caption, "Select_" + item.id, _content)
+			# Der Knotenname traegt die Gegenstands-Id, nicht die Art -- das
+			# Symbol muss deshalb ausdruecklich mitgegeben werden.
+			UiKit.apply_icon(select, select.name, item.kind)
 			select.disabled = GameState.home_simulation.item_in_use(item.id)
 			select.pressed.connect(func() -> void: item_selected.emit(item.id))
 		_content.add_child(_label("Zusätzliche Einrichtung", 13))
