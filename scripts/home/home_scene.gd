@@ -18,9 +18,7 @@ var _cat_actors: Dictionary = {}
 var _item_actors: Dictionary = {}
 var _held_sprite := Sprite2D.new()
 var _held_atlas := AtlasTexture.new()
-var _parcel_pad: Polygon2D
-var _parcel_count: Label
-var _parcel_sprites: Array[Sprite2D] = []
+var _room := HomeRoom.new()
 var _facing := Vector2.DOWN
 var _focus_id: String = ""
 var _focus_kind: String = ""
@@ -45,7 +43,7 @@ func _ready() -> void:
 	# Platz fuer die Kontextanzeige lassen, damit die Paketablage sichtbar bleibt.
 	camera.limit_bottom = HomeCatalog.ROOM_SIZE.y * HomeCatalog.TILE + CAMERA_BOTTOM_MARGIN
 	camera.reset_smoothing()
-	_build_room()
+	_room.build(self, $Floor)
 	_held_atlas.atlas = load("res://assets/sprites/cats.png")
 	_held_sprite.texture = _held_atlas
 	player.add_child(_held_sprite)
@@ -70,81 +68,6 @@ func _ready() -> void:
 	var fixture_hint := hud.fixture_hint()
 	hud.show_toast(fixture_hint if not fixture_hint.is_empty() \
 		else "Willkommen! Futter am Schrank und Wasser am Hahn holen, dann zu den Näpfen tragen.")
-
-func _build_room() -> void:
-	var floor_tiles: TileMapLayer = $Floor
-	for y in HomeCatalog.ROOM_SIZE.y:
-		for x in HomeCatalog.ROOM_SIZE.x:
-			var cell := Vector2i(x, y)
-			var tile := (x + y) % 2 if HomeCatalog.inside(cell) else 2
-			if cell == HomeCatalog.ENTRY + Vector2i.DOWN:
-				tile = 3
-			floor_tiles.set_cell(cell, 0, Vector2i(tile, 0))
-	var width := float(HomeCatalog.ROOM_SIZE.x * HomeCatalog.TILE)
-	var height := float(HomeCatalog.ROOM_SIZE.y * HomeCatalog.TILE)
-	_wall(Vector2(width / 2, 8), Vector2(width, 16))
-	_wall(Vector2(width / 2, height - 8), Vector2(width, 16))
-	_wall(Vector2(8, height / 2), Vector2(16, height))
-	_wall(Vector2(width - 8, height / 2), Vector2(16, height))
-	var exit_label := Label.new()
-	exit_label.text = "Rausgehen"
-	exit_label.add_theme_font_size_override("font_size", 10)
-	exit_label.add_theme_color_override("font_color", Color("#382c31"))
-	exit_label.position = HomeCatalog.world(HomeCatalog.ENTRY) + Vector2(-27, 1)
-	exit_label.z_index = -1
-	add_child(exit_label)
-	_build_parcel_spot()
-
-func _build_parcel_spot() -> void:
-	var spot := Node2D.new()
-	spot.name = "ParcelSpot"
-	spot.position = HomeCatalog.world(SupplyCatalog.PARCEL_CELL)
-	spot.z_index = -1
-	add_child(spot)
-	_parcel_pad = Polygon2D.new()
-	_parcel_pad.name = "ParcelPad"
-	_parcel_pad.polygon = PackedVector2Array([
-		Vector2(-12, -8), Vector2(8, -8), Vector2(8, 18), Vector2(-12, 18),
-	])
-	spot.add_child(_parcel_pad)
-	var atlas := AtlasTexture.new()
-	atlas.atlas = load("res://assets/sprites/supply_cargo.png")
-	atlas.region = Rect2(32, 0, 16, 16)
-	for index in 3:
-		var parcel := Sprite2D.new()
-		parcel.texture = atlas
-		parcel.position = Vector2(index * 2 - 4, 8 - index * 4)
-		spot.add_child(parcel)
-		_parcel_sprites.append(parcel)
-	_parcel_count = Label.new()
-	_parcel_count.name = "ParcelCount"
-	_parcel_count.position = Vector2(-40, -7)
-	_parcel_count.add_theme_font_size_override("font_size", 8)
-	_parcel_count.add_theme_color_override("font_color", Color("#382c31"))
-	_parcel_count.add_theme_color_override("font_outline_color", Color("#fff0cb"))
-	_parcel_count.add_theme_constant_override("outline_size", 2)
-	_parcel_count.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	spot.add_child(_parcel_count)
-	_update_parcels()
-
-func _update_parcels() -> void:
-	var ready := GameState.supplies.ready_count()
-	_parcel_count.text = "Pakete\n%d" % ready
-	for index in _parcel_sprites.size():
-		_parcel_sprites[index].visible = index < ready
-	_parcel_pad.color = Color("#e4b255") if _focus_kind == "parcel" else Color("#a17c5c")
-
-func _wall(center: Vector2, size: Vector2) -> void:
-	var wall := StaticBody2D.new()
-	wall.collision_layer = 1
-	wall.collision_mask = 0
-	wall.position = center
-	var collider := CollisionShape2D.new()
-	var shape := RectangleShape2D.new()
-	shape.size = size
-	collider.shape = shape
-	wall.add_child(collider)
-	add_child(wall)
 
 func _sync_cats() -> void:
 	_bind_simulation()
@@ -317,7 +240,7 @@ func _resolve_focus() -> void:
 		(_cat_actors[_focus_id] as HomeCatActor).selected = true
 	elif InteractionRegistry.has(_focus_kind) and _item_actors.has(_focus_id):
 		(_item_actors[_focus_id] as HomeItemActor).selected = true
-	_update_parcels()
+	_room.update_parcels(_focus_kind == "parcel")
 	var observed: CatData
 	if holding:
 		observed = simulation.cat_by_id(simulation.held_cat_id)
@@ -587,7 +510,7 @@ func _on_cat_died(cat: CatData) -> void:
 	_save()
 
 func _on_supplies_changed() -> void:
-	_update_parcels()
+	_room.update_parcels(_focus_kind == "parcel")
 	hud.refresh()
 
 func _save() -> void:
