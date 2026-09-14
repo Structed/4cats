@@ -5,9 +5,13 @@
 ## bekommt ein Symbol" -- musste deshalb jede dieser Stellen anfassen und kollidierte
 ## mit jedem parallel laufenden Feature-Branch.
 ##
-## Hier laeuft das zusammen: Schriftgroesse, Mindesthoehe, Symbol und der
-## Rueckfall auf einen Tooltip. Welches Symbol ein Knopf bekommt, steht in
-## `IconSet.BUTTON_ICONS` -- also in Daten, nicht am Bauort.
+## Hier laeuft das zusammen: Schriftgroesse, Mindesthoehe, Symbol, Beschriftung
+## und der Rueckfall auf einen Tooltip. Welches Symbol ein Knopf bekommt, steht
+## in `IconSet.BUTTON_ICONS`, welchen Text er traegt in `locale/de.csv` -- also
+## in Daten, nicht am Bauort.
+##
+## `adopt()` zieht einen ganzen Szenenbaum durch beides. Eine Szene muss ihre
+## Knoepfe damit nicht mehr einzeln aufzaehlen.
 ##
 ## Die Darstellungsart gilt global und laesst sich in einem Zug umstellen:
 ##   TEXT_ONLY      nur Beschriftung (Voreinstellung)
@@ -25,6 +29,11 @@ enum IconMode {
 ## Schluessel in den Einstellungen; siehe SaveManager.
 const SETTING_KEY := "button_icons"
 
+## Erkennt einen Uebersetzungsschluessel wie "menu.new_game": Kleinbuchstaben,
+## Ziffern und Unterstriche, durch Punkte getrennt. Sichtbarer deutscher Text
+## kann das nicht treffen -- er hat Leerzeichen, Grossbuchstaben oder Umlaute.
+const KEY_PATTERN := "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"
+
 ## Der Autoload wird ueber den Knoten geholt, weil UiKit auch ausserhalb des
 ## laufenden Spiels benutzt wird (Lint, Tests). Der Typ kommt vom Skript.
 const SaveManagerScript := preload("res://scripts/autoload/save_manager.gd")
@@ -41,6 +50,68 @@ const MODE_NAMES := {
 
 static var _icon_mode: IconMode = IconMode.TEXT_ONLY
 static var _mode_loaded: bool = false
+static var _key_regex: RegEx = null
+
+
+## Loest einen Uebersetzungsschluessel auf. Alles andere bleibt unveraendert,
+## damit zusammengesetzte Texte ("Muenzen: %d") weiter direkt gesetzt werden
+## koennen.
+##
+## Ein Schluessel ohne Eintrag in `locale/de.csv` wuerde als roher Schluessel
+## im Bild stehen. Das faellt hier sofort auf -- und `tools/test_translations.gd`
+## laesst den Build dafuer scheitern.
+static func text(value: String) -> String:
+	if not is_key(value):
+		return value
+	var translated := String(TranslationServer.translate(value))
+	if translated == value:
+		push_warning("Kein deutscher Text fuer den Schluessel '%s'." % value)
+	return translated
+
+
+## Sieht ein Text wie ein Uebersetzungsschluessel aus?
+static func is_key(value: String) -> bool:
+	if value.is_empty():
+		return false
+	if _key_regex == null:
+		_key_regex = RegEx.new()
+		_key_regex.compile(KEY_PATTERN)
+	return _key_regex.search(value) != null
+
+
+## Uebernimmt einen ganzen Szenenbaum: Beschriftungen werden uebersetzt,
+## Knoepfe bekommen ihr Symbol.
+##
+## Vorher zaehlte jede Szene ihre Knoepfe von Hand auf. Ein neuer Knopf in der
+## `.tscn` musste deshalb zusaetzlich im Skript eingetragen werden -- wurde das
+## vergessen, blieb er ohne Symbol. Beides erledigt jetzt ein Durchlauf.
+static func adopt(root: Node) -> void:
+	_adopt_one(root)
+	for child in root.get_children():
+		adopt(child)
+
+
+static func _adopt_one(node: Node) -> void:
+	# OptionButton zeigt den gewaehlten Eintrag an; seine Beschriftung gehoert
+	# nicht ihm selbst und darf weder uebersetzt noch durch ein Symbol ersetzt
+	# werden.
+	if node is OptionButton or node is MenuButton:
+		return
+	var button := node as Button
+	if button != null:
+		button.text = text(button.text)
+		button.tooltip_text = text(button.tooltip_text)
+		# Ein Umschalter traegt seine Bedeutung im Kasten, nicht im Symbol.
+		if not (node is CheckBox or node is CheckButton):
+			apply_icon(button, button.name)
+		return
+	var plain := node as Label
+	if plain != null:
+		plain.text = text(plain.text)
+		return
+	var rich := node as RichTextLabel
+	if rich != null:
+		rich.text = text(rich.text)
 
 
 ## Aktuelle Darstellungsart. Wird beim ersten Zugriff aus den Einstellungen
@@ -81,13 +152,13 @@ static func _mode_from_settings() -> IconMode:
 ## den die Testsuiten den Knopf finden -- er ist deshalb Pflicht.
 ## Wird `parent` angegeben, haengt der Knopf dort direkt ein. `unique_owner`
 ## macht ihn zusaetzlich ueber `%Name` erreichbar.
-static func button(text: String, node_name: String, parent: Node = null,
+static func button(caption: String, node_name: String, parent: Node = null,
 		font_size: int = DEFAULT_FONT_SIZE,
 		min_height: int = DEFAULT_MIN_HEIGHT,
 		unique_owner: Node = null) -> Button:
 	var control := Button.new()
 	control.name = node_name
-	control.text = text
+	control.text = text(caption)
 	if font_size > 0:
 		# 0 heisst: Schriftgroesse aus dem Theme uebernehmen.
 		control.add_theme_font_size_override("font_size", font_size)
@@ -139,12 +210,13 @@ static func apply_icon(control: Button, node_name: String,
 ##
 ## Knoepfe, deren Text sich zur Laufzeit aendert ("Einrichten"/"Abbrechen"),
 ## muessen hierueber gehen -- sonst taucht bei ICON_ONLY wieder Text auf.
-static func set_button_text(control: Button, text: String) -> void:
+static func set_button_text(control: Button, caption: String) -> void:
+	var resolved := text(caption)
 	if icon_mode() == IconMode.ICON_ONLY and control.icon != null:
-		control.tooltip_text = text
+		control.tooltip_text = resolved
 		control.text = ""
 		return
-	control.text = text
+	control.text = resolved
 
 
 ## Beschriftung eines Knopfes, unabhaengig von der Darstellungsart.
@@ -155,10 +227,10 @@ static func button_text(control: Button) -> String:
 
 
 ## Baut ein Textfeld, das keine Maus- oder Touch-Eingaben abfaengt.
-static func label(text: String, font_size: int = DEFAULT_FONT_SIZE,
+static func label(caption: String, font_size: int = DEFAULT_FONT_SIZE,
 		parent: Node = null) -> Label:
 	var control := Label.new()
-	control.text = text
+	control.text = text(caption)
 	control.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	control.add_theme_font_size_override("font_size", font_size)
 	if parent != null:

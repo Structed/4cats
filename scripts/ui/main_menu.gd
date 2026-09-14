@@ -40,6 +40,7 @@ var _analytics_dialog: AnalyticsConsent
 
 func _ready() -> void:
 	GameState.simulation_active = false
+	UiKit.adopt(self)
 	var version: String = ProjectSettings.get_setting("application/config/version")
 	_version_label.text = "Version %s" % version
 	_set_credits_visible(false)
@@ -48,11 +49,6 @@ func _ready() -> void:
 	_continue_button.visible = SaveManager.has_save()
 	# Auf Handys gibt es keinen sinnvollen „Beenden"-Knopf.
 	_quit_button.visible = OS.get_name() not in ["Android", "iOS", "Web"]
-	for scene_button: Button in [
-		_continue_button, _new_game_button, _options_button, _quit_button,
-		_credits_button, _credits_close, _options_close, _confirm_yes, _confirm_no,
-	]:
-		UiKit.decorate(scene_button)
 
 	_continue_button.pressed.connect(_on_continue_pressed)
 	_new_game_button.pressed.connect(_on_new_game_pressed)

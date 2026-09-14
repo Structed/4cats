@@ -29,9 +29,8 @@ var _movement_hint: Label
 
 func _ready() -> void:
 	layer = 5
+	UiKit.adopt(self)
 	_forced = bool(SaveManager.load_settings().get(SETTING_KEY, false))
-	UiKit.decorate(_action_button)
-	UiKit.decorate(_sprint_button)
 	_apply_visibility()
 
 	_action_button.button_down.connect(_on_action_down)

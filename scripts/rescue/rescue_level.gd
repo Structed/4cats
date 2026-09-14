@@ -35,6 +35,7 @@ var _leaving: bool = false
 func _ready() -> void:
 	GameState.simulation_active = true
 	add_to_group("rescue_level")
+	UiKit.adopt(self)
 
 	_generator = LevelGenerator.new(MAP_WIDTH, MAP_HEIGHT)
 	_generator.generate(_ground, _objects)

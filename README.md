@@ -320,6 +320,50 @@ Beschriftungen, die sich zur Laufzeit ändern, gehören über
 der Darstellung `icon` wieder Text einblenden. `tools/test_ui_kit.gd` sichert
 das zusammen mit der Vollständigkeit der Symbolzuordnung ab.
 
+### Sichtbarer Text in einer Datei
+
+Die Beschriftungen der Szenen stehen in `locale/de.csv`, nicht mehr in den
+`.tscn`-Dateien:
+
+```csv
+keys,de
+menu.new_game,Neues Spiel
+hud.close_shop,Schließen · Esc
+```
+
+In der Szene steht nur noch der Schlüssel (`text = "menu.new_game"`).
+`UiKit.adopt(self)` läuft einmal durch den Szenenbaum, setzt den deutschen Text
+ein und hängt gleich das passende Symbol an. Das ersetzt die früheren
+Aufzählungen im Skript:
+
+```gdscript
+# vorher: jede neue Schaltfläche musste hier nachgetragen werden
+for scene_button: Button in [_continue_button, _new_game_button, …]:
+    UiKit.decorate(scene_button)
+
+# heute
+UiKit.adopt(self)
+```
+
+Der Gewinn liegt im Zusammenspiel mehrerer Zweige: `scenes/ui/main_menu.tscn`
+war die Datei mit den viertmeisten Änderungen, und eine `.tscn` ist der
+unangenehmste Ort für einen Merge-Konflikt — Godot schreibt beim Speichern
+Knotenreihenfolge und Ressourcen-IDs neu. Eine Formulierung zu ändern ist jetzt
+eine Zeile in einer CSV.
+
+Neuer Text ist entsprechend **eine neue Zeile**, kein Eingriff in eine
+bestehende Datei. Fehlt sie, stünde im Spiel der rohe Schlüssel; deshalb prüft
+`tools/test_translations.gd` jede Szene gegen die CSV und nennt Schlüssel und
+Datei, bevor etwas ausgeliefert wird.
+
+Zusammengesetzte Texte (`"Münzen: %d"`) bleiben im Code — `UiKit.text()` gibt
+alles unverändert zurück, was nicht wie ein Schlüssel aussieht. Nach einer
+Änderung an `locale/de.csv` einmal importieren:
+
+```powershell
+pwsh tools/godot.ps1 --headless --path . --import
+```
+
 ### Fenster über dem Spiel
 
 Pausenfenster, Kaufdialog und die Menüs im Haus laufen über
