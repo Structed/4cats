@@ -8,15 +8,18 @@ const NEED_LABELS := {
 const CAT_STATUS_WIDTH := 220.0
 const HINT_WIDTH := 240.0
 
-signal furnish_requested()
-signal shop_requested()
-signal supplies_requested()
-signal pause_requested()
-signal close_requested()
-signal menu_requested()
-signal item_selected(id: String)
-signal item_purchased(kind: String)
-signal upgrade_requested(id: String)
+## Alle Fenster des Hauses. Ein neues Menue ist eine Zeile hier und eine
+## neue Datei unter scripts/ui/panels/ -- sonst nichts an dieser Datei.
+const PANELS := {
+	"furnish": preload("res://scripts/ui/panels/furnish_panel.gd"),
+	"supplies": preload("res://scripts/ui/panels/supplies_panel.gd"),
+	"shop": preload("res://scripts/ui/panels/upgrade_panel.gd"),
+	"pause": preload("res://scripts/ui/panels/pause_panel.gd"),
+}
+
+## Einziger Draht vom HUD zur Szene. Welche Aktion was ausloest, steht in
+## `HomeScene._on_hud_action` -- eine Stelle statt neun Signalen.
+signal action_requested(action: StringName, payload: Variant)
 
 var modal_kind: String = ""
 var _modals: ModalHost
@@ -80,12 +83,12 @@ func _ready() -> void:
 	navigation.add_theme_constant_override("separation", 6)
 	header_box.add_child(navigation)
 	_furnish = _button("Einrichten", "FurnishButton", navigation)
-	_furnish.pressed.connect(func() -> void: furnish_requested.emit())
+	_furnish.pressed.connect(func() -> void: _act(&"furnish"))
 	var supplies := _button("Vorräte", "SupplyButton", navigation)
 	supplies.tooltip_text = "Futter bestellen und Lieferungen ansehen"
-	supplies.pressed.connect(func() -> void: supplies_requested.emit())
-	_button("Ausbauen", "ShopButton", navigation).pressed.connect(func() -> void: shop_requested.emit())
-	_button("Pause", "PauseButton", navigation).pressed.connect(func() -> void: pause_requested.emit())
+	supplies.pressed.connect(func() -> void: _act(&"supplies"))
+	_button("Ausbauen", "ShopButton", navigation).pressed.connect(func() -> void: _act(&"shop"))
+	_button("Pause", "PauseButton", navigation).pressed.connect(func() -> void: _act(&"pause"))
 	for button: Button in navigation.get_children():
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.custom_minimum_size.y = 30
@@ -160,9 +163,9 @@ func _ready() -> void:
 	_modal_notice.add_theme_color_override("font_color", Color("#ffd08a"))
 	box.add_child(_modal_notice)
 	_modal_notice.hide()
-	_button("Schließen", "ModalCloseButton", box).pressed.connect(func() -> void: close_requested.emit())
+	_button("Schließen", "ModalCloseButton", box).pressed.connect(func() -> void: _act(&"close"))
 	_modals = ModalHost.new(self)
-	for kind in ["furnish", "supplies", "shop", "pause"]:
+	for kind in PANELS:
 		_modals.register(kind, _panel, _dim)
 	get_viewport().gui_focus_changed.connect(_modals.guard_focus)
 	close_modal()
@@ -270,30 +273,15 @@ func refresh() -> void:
 	_coins.text = "%d Münzen" % GameState.coins
 	_info.text = "%d Katzen zu Hause · %d vermittelt" % [
 		GameState.home_cats.size(), GameState.adopted_total]
-	var missing: PackedStringArray = _missing_fixtures()
+	var missing: PackedStringArray = HomeCatalog.missing_fixtures()
 	if not missing.is_empty():
 		_info.text = "Kostenlos aufstellen: %s" % " / ".join(missing)
 	_info.tooltip_text = fixture_hint()
 	if not modal_kind.is_empty() and modal_kind != "supplies":
 		_populate()
 
-func _missing_fixtures() -> PackedStringArray:
-	var missing: PackedStringArray = []
-	for kind in SupplyCatalog.FIXTURES:
-		var placed := false
-		for item in GameState.home.items:
-			if item.kind == kind and item.placed:
-				placed = true
-				break
-		if not placed:
-			missing.append(HomeCatalog.title(kind))
-	return missing
-
 func fixture_hint() -> String:
-	var missing: PackedStringArray = _missing_fixtures()
-	if missing.is_empty():
-		return ""
-	return "%s fehlt im Raum. Unter „Einrichten“ kostenlos aufstellen." % " / ".join(missing)
+	return HomeCatalog.fixture_hint()
 
 func set_hint(text: String) -> void:
 	_hint.text = text
@@ -337,60 +325,19 @@ func _populate() -> void:
 	for child in _content.get_children():
 		_content.remove_child(child)
 		child.queue_free()
-	if modal_kind == "furnish":
-		_title.text = "Einrichten · %d Münzen" % GameState.coins
-		var fixture_text := fixture_hint()
-		if not fixture_text.is_empty():
-			var notice := _label(fixture_text, 11)
-			notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			_content.add_child(notice)
-		_content.add_child(_label("Vorhandene Einrichtung", 13))
-		for item in GameState.home.items:
-			var caption := "%s · %s" % [HomeCatalog.title(item.kind),
-				"versetzen" if item.placed else "aufstellen"]
-			var select := _button(caption, "Select_" + item.id, _content)
-			# Der Knotenname traegt die Gegenstands-Id, nicht die Art -- das
-			# Symbol muss deshalb ausdruecklich mitgegeben werden.
-			UiKit.apply_icon(select, select.name, item.kind)
-			select.disabled = GameState.home_simulation.item_in_use(item.id)
-			select.pressed.connect(func() -> void: item_selected.emit(item.id))
-		_content.add_child(_label("Zusätzliche Einrichtung", 13))
-		for kind in HomeCatalog.KINDS:
-			var price := HomeCatalog.price(kind)
-			var caption := "%s – %s" % [HomeCatalog.title(kind),
-				"kostenlos" if price == 0 else "%d Münzen" % price]
-			var buy := _button(caption, "Buy_" + kind, _content)
-			buy.disabled = GameState.coins < HomeCatalog.price(kind)
-			buy.pressed.connect(func() -> void: item_purchased.emit(kind))
-	elif modal_kind == "supplies":
-		_title.text = "Futter bestellen"
-		var supplies := SupplyPanel.new()
-		supplies.name = "SupplyPanel"
-		supplies.delivery = true
-		supplies.message.connect(show_toast)
-		_content.add_child(supplies)
-		supplies.owner = self
-		supplies.unique_name_in_owner = true
-	elif modal_kind == "shop":
-		_title.text = "Ausbauen · %d Münzen" % GameState.coins
-		for id: String in GameState.UPGRADES:
-			var info: Dictionary = GameState.UPGRADES[id]
-			var cost := GameState.upgrade_cost(id)
-			var title := _label("%s · Stufe %d/%d" % [
-				String(info["name"]), GameState.upgrade_level(id), GameState.upgrade_max_level(id)], 14)
-			_content.add_child(title)
-			var description := _label(String(info["description"]), 11)
-			description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			_content.add_child(description)
-			var buy := _button("Voll ausgebaut" if cost < 0 else "Ausbauen – %d Münzen" % cost,
-				"Upgrade_" + id, _content)
-			buy.disabled = not GameState.can_afford_upgrade(id)
-			buy.pressed.connect(func() -> void: upgrade_requested.emit(id))
-	else:
-		_title.text = "Pause · " + DifficultyRules.title(GameState.difficulty_id)
-		var help := _label("Gehen: WASD / Pfeiltasten\nInteraktion: E / Leertaste\nEinrichten: B · Drehen: R · Einlagern: X\nAbbrechen / Pause: Esc\n\n%s\n\nFutter am Schrank, Wasser am Hahn holen.\nPakete vor dem Nachfüllen im Schrank einräumen.\nWasser, Waschen, Behandlung und Katzenklo-Reinigung bleiben kostenlos." % DifficultyRules.description(
-			GameState.difficulty_id), 12)
-		help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_content.add_child(help)
-		_button("Weiterspielen", "ResumeButton", _content).pressed.connect(func() -> void: close_requested.emit())
-		_button("Hauptmenü", "MenuButton", _content).pressed.connect(func() -> void: menu_requested.emit())
+	var panel_script: GDScript = PANELS.get(modal_kind, null)
+	if panel_script == null:
+		return
+	var panel: HomePanel = panel_script.new()
+	_title.text = panel.title()
+	panel.build(PanelBuilder.new(_content, self, _act))
+
+
+## Reicht eine Aktion aus der Kopfzeile oder einem Fenster weiter.
+##
+## Meldungen bleiben hier: sie betreffen nur die Anzeige, nicht das Spiel.
+func _act(action: StringName, payload: Variant = null) -> void:
+	if action == &"toast":
+		show_toast(String(payload))
+		return
+	action_requested.emit(action, payload)

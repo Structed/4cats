@@ -338,6 +338,40 @@ Spielwelt, die Spielfigur und der Inhalt des Fensters. Den Fokusring liest der
 Host aus dem Szenenbaum — ein Knopf mehr im Fenster braucht deshalb keine
 zweite Änderung an anderer Stelle. `tools/test_modal_host.gd` sichert das ab.
 
+### Inhalt der Fenster im Haus
+
+Was *in* einem Fenster steht, liegt in einer eigenen Datei unter
+`scripts/ui/panels/`. Jedes Fenster erbt von `HomePanel`, liefert eine
+Überschrift und baut seinen Inhalt über einen `PanelBuilder`:
+
+```gdscript
+class_name PausePanel
+extends HomePanel
+
+func title() -> String:
+    return "Pause"
+
+func build(ui: PanelBuilder) -> void:
+    ui.wrapped("Gehen: WASD / Pfeiltasten")
+    ui.button("Weiterspielen", "ResumeButton").pressed.connect(
+        func() -> void: ui.act(&"close"))
+```
+
+Angemeldet wird es mit einer Zeile in `HomeHUD.PANELS`. Ein neues Menü ist
+damit **eine neue Datei plus eine Zeile** – vorher war es ein weiterer Zweig in
+einer langen Fallunterscheidung, ein weiteres Signal am HUD und ein weiteres
+`connect` in der Szene, also drei Änderungen an zwei viel angefassten Dateien.
+
+Ein Fenster kennt das HUD bewusst nicht. Es meldet nur Absichten über
+`ui.act(&"aktion", nutzlast)`; wer sie ausführt, steht an einer einzigen Stelle
+in `HomeScene._on_hud_action`. `tools/test_panels.gd` baut jedes Fenster, drückt
+jeden Knopf und prüft, dass jede gemeldete Aktion dort auch behandelt wird –
+ein Tippfehler im Aktionsnamen fällt so beim Test auf und nicht erst beim
+Klicken.
+
+`ui.button(text, name)` geht durch dieselbe Fabrik wie alle anderen Knöpfe,
+Symbole und Icon-Modi gelten also automatisch auch hier.
+
 ### Technische Eckdaten
 - **Godot 4.7.2**, GDScript
 - Renderer `gl_compatibility` (OpenGL ES 3.0) – größte Abdeckung auf Android

@@ -56,15 +56,7 @@ func _ready() -> void:
 	hud = HomeHUD.new()
 	hud.name = "HomeHUD"
 	$UI.add_child(hud)
-	hud.furnish_requested.connect(_toggle_furnishing)
-	hud.shop_requested.connect(func() -> void: _open_modal("shop"))
-	hud.supplies_requested.connect(func() -> void: _open_modal("supplies"))
-	hud.pause_requested.connect(_pause_or_cancel)
-	hud.close_requested.connect(_close_modal)
-	hud.menu_requested.connect(func() -> void: SceneRouter.goto_main_menu())
-	hud.item_selected.connect(start_placement)
-	hud.item_purchased.connect(_buy_item)
-	hud.upgrade_requested.connect(_buy_upgrade)
+	hud.action_requested.connect(_on_hud_action)
 	GameState.home_cats_changed.connect(_sync_cats)
 	GameState.home_layout_changed.connect(_rebuild_items)
 	GameState.coins_changed.connect(func(_amount: int) -> void: hud.refresh())
@@ -499,6 +491,33 @@ func _pause_or_cancel() -> void:
 		hud.show_toast("Pflege abgebrochen. Du kannst die Katze weitertragen.")
 	else:
 		_open_modal("pause")
+
+## Einziger Verteiler fuer alles, was das HUD meldet.
+##
+## Ein neues Fenster braucht hier einen Zweig -- und sonst nichts an dieser
+## Datei.
+func _on_hud_action(action: StringName, payload: Variant) -> void:
+	match action:
+		&"furnish":
+			_toggle_furnishing()
+		&"shop":
+			_open_modal("shop")
+		&"supplies":
+			_open_modal("supplies")
+		&"pause":
+			_pause_or_cancel()
+		&"close":
+			_close_modal()
+		&"menu":
+			SceneRouter.goto_main_menu()
+		&"select_item":
+			start_placement(String(payload))
+		&"buy_item":
+			_buy_item(String(payload))
+		&"upgrade":
+			_buy_upgrade(String(payload))
+		_:
+			push_warning("Unbekannte HUD-Aktion: %s" % action)
 
 func _open_modal(kind: String) -> void:
 	_release_inputs()

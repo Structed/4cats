@@ -43,3 +43,23 @@ static func cell(point: Vector2) -> Vector2i:
 
 static func inside(cell_position: Vector2i) -> bool:
 	return Rect2i(Vector2i.ONE, ROOM_SIZE - Vector2i(2, 2)).has_point(cell_position)
+
+## Pflichtmoebel, die noch nicht im Raum stehen.
+static func missing_fixtures() -> PackedStringArray:
+	var missing: PackedStringArray = []
+	for kind in SupplyCatalog.FIXTURES:
+		var placed := false
+		for item in GameState.home.items:
+			if item.kind == kind and item.placed:
+				placed = true
+				break
+		if not placed:
+			missing.append(title(kind))
+	return missing
+
+## Hinweis auf fehlende Pflichtmoebel, oder "" wenn der Raum vollstaendig ist.
+static func fixture_hint() -> String:
+	var missing: PackedStringArray = missing_fixtures()
+	if missing.is_empty():
+		return ""
+	return "%s fehlt im Raum. Unter „Einrichten“ kostenlos aufstellen." % " / ".join(missing)
