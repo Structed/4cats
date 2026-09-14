@@ -10,7 +10,7 @@ const RELEASE_ACTIONS: PackedStringArray = [
 
 @onready var player: Player = $Player
 @onready var _entities: Node2D = $Entities
-@onready var _touch: CanvasLayer = $TouchControls
+@onready var _touch: TouchControls = $TouchControls
 
 var hud: HomeHUD
 var simulation: HomeSimulation
@@ -62,7 +62,7 @@ func _ready() -> void:
 	GameState.supplies_changed.connect(_on_supplies_changed)
 	SaveManager.save_failed.connect(hud.show_toast)
 	simulation.care_finished.connect(_on_care_finished)
-	_touch.call("configure_home")
+	_touch.configure_home()
 	_rebuild_items()
 	_sync_cats()
 	var fixture_hint := hud.fixture_hint()
@@ -128,7 +128,7 @@ func _process(delta: float) -> void:
 		player.velocity = Vector2.ZERO
 		hud.set_cat_status(simulation.cat_by_id(simulation.held_cat_id))
 		hud.set_hint("Pflege …\nAktion / Esc: abbrechen")
-		_touch.call("set_action_label", "Abbrechen")
+		_touch.set_action_label("Abbrechen")
 	elif _preview == null:
 		_resolve_focus()
 	else:
@@ -247,9 +247,9 @@ func _resolve_focus() -> void:
 	elif _focus_kind == "cat":
 		observed = simulation.cat_by_id(_focus_id)
 	hud.set_cat_status(observed)
-	var shortcut := "E: " if not _focus_kind.is_empty() and not bool(_touch.call("is_touch_visible")) else ""
+	var shortcut := "E: " if not _focus_kind.is_empty() and not _touch.is_touch_visible() else ""
 	hud.set_hint(shortcut + hint)
-	_touch.call("set_action_label", hint.get_slice("\n", 0) if not _focus_kind.is_empty() else "Interaktion")
+	_touch.set_action_label(hint.get_slice("\n", 0) if not _focus_kind.is_empty() else "Interaktion")
 
 ## Hinweistext des anvisierten Gegenstands; der Text gehoert der Interaktion.
 func _item_hint(item: HomeItemData, holding: bool) -> String:
@@ -378,14 +378,14 @@ func _open_modal(kind: String) -> void:
 	hud.open_modal(kind)
 	get_tree().paused = true
 	AnalyticsManager.player_activity()
-	_touch.call("set_enabled", false)
+	_touch.set_enabled(false)
 	_save()
 
 func _close_modal() -> void:
 	hud.close_modal()
 	get_tree().paused = false
 	AnalyticsManager.player_activity()
-	_touch.call("set_enabled", true)
+	_touch.set_enabled(true)
 	_release_inputs()
 	_input_delay = 0.15
 
@@ -418,7 +418,7 @@ func start_placement(id: String) -> void:
 	_preview.z_index = 20
 	_entities.add_child(_preview)
 	hud.set_building(true)
-	_touch.call("set_building", true)
+	_touch.set_building(true)
 	_update_preview()
 
 func _occupants() -> Array[Vector2]:
@@ -436,7 +436,7 @@ func _update_preview() -> void:
 	if simulation.item_in_use(_preview.data.id):
 		_preview_error = "Dieser Gegenstand wird gerade benutzt."
 	_preview.allowed = _preview_error.is_empty()
-	if bool(_touch.call("is_touch_visible")):
+	if _touch.is_touch_visible():
 		hud.set_hint("%s platzieren\nJoystick: bewegen · rechts aufstellen%s" % [
 			HomeCatalog.title(_preview.data.kind),
 			"" if _preview.allowed else "\n" + _preview_error])
@@ -444,7 +444,7 @@ func _update_preview() -> void:
 		hud.set_hint("%s · R drehen · X einlagern\n%s" % [
 			HomeCatalog.title(_preview.data.kind),
 			"E aufstellen · Esc abbrechen" if _preview.allowed else _preview_error])
-	_touch.call("set_action_label", "Aufstellen")
+	_touch.set_action_label("Aufstellen")
 
 func _place_preview() -> void:
 	_update_preview()
@@ -475,7 +475,7 @@ func _cancel_placement() -> void:
 		_preview.queue_free()
 		_preview = null
 	hud.set_building(false)
-	_touch.call("set_building", false)
+	_touch.set_building(false)
 
 func _buy_item(kind: String) -> void:
 	if GameState.buy_home_item(kind) == null:

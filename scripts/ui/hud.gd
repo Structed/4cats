@@ -2,6 +2,7 @@
 ##
 ## Zeigt Rettungskorb, Vorrat, Pflegewarnungen und den Heimweg; verwaltet
 ## ausserdem Pause und den nur an der Ladentheke erreichbaren Einkauf.
+class_name RescueHUD
 extends Control
 
 const HINT_SECONDS := 3.5
@@ -26,7 +27,7 @@ var _hint_timer: float = 0.0
 var _care_alerts: CareAlerts
 var _player: Player
 var _shop: FoodShop
-var _touch: CanvasLayer
+var _touch: TouchControls
 var _shop_dim: ColorRect
 var _shop_panel: PanelContainer
 var _shop_message: Label
@@ -122,7 +123,7 @@ func toggle_pause() -> void:
 	AudioManager.play_sfx("ui_click")
 
 
-func set_shop_context(player: Player, shop: FoodShop, touch: CanvasLayer) -> void:
+func set_shop_context(player: Player, shop: FoodShop, touch: TouchControls) -> void:
 	_player = player
 	_shop = shop
 	_touch = touch
@@ -251,13 +252,13 @@ func close_shop() -> void:
 	if is_instance_valid(_player):
 		_player.set_physics_process(_physics_before_modal)
 	if is_instance_valid(_touch):
-		_touch.call("set_enabled", true)
+		_touch.set_enabled(true)
 	_modals.restore_focus()
 
 
 func _release_controls() -> void:
 	if is_instance_valid(_touch) and _touch.is_inside_tree():
-		_touch.call("set_enabled", false)
+		_touch.set_enabled(false)
 	for action in RELEASE_ACTIONS:
 		Input.action_release(action)
 	if is_instance_valid(_player):
@@ -266,7 +267,7 @@ func _release_controls() -> void:
 
 func _layout_care_alerts() -> void:
 	_care_alerts.position.x = 8
-	if not is_instance_valid(_touch) or not bool(_touch.call("is_touch_visible")):
+	if not is_instance_valid(_touch) or not _touch.is_touch_visible():
 		return
 	var joystick: Control = _touch.get_node("Root/Joystick")
 	var rect := joystick.get_global_rect()

@@ -25,6 +25,10 @@ enum IconMode {
 ## Schluessel in den Einstellungen; siehe SaveManager.
 const SETTING_KEY := "button_icons"
 
+## Der Autoload wird ueber den Knoten geholt, weil UiKit auch ausserhalb des
+## laufenden Spiels benutzt wird (Lint, Tests). Der Typ kommt vom Skript.
+const SaveManagerScript := preload("res://scripts/autoload/save_manager.gd")
+
 const DEFAULT_FONT_SIZE := 12
 const DEFAULT_MIN_HEIGHT := 28
 
@@ -60,8 +64,10 @@ static func _mode_from_settings() -> IconMode:
 	var loop := Engine.get_main_loop() as SceneTree
 	if loop == null or loop.root == null or not loop.root.has_node("SaveManager"):
 		return IconMode.TEXT_ONLY
-	var manager := loop.root.get_node("SaveManager")
-	var settings: Dictionary = manager.call("load_settings")
+	var manager := loop.root.get_node("SaveManager") as SaveManagerScript
+	if manager == null:
+		return IconMode.TEXT_ONLY
+	var settings := manager.load_settings()
 	var mode_name: String = String(settings.get(SETTING_KEY, "text"))
 	if not MODE_NAMES.has(mode_name):
 		return IconMode.TEXT_ONLY

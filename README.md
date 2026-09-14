@@ -446,6 +446,33 @@ Die Pflegeregeln – Abbauraten, Lebensgefahr, Schonfrist und Vermittlung –
 liegen in `scripts/state/needs_simulation.gd`. Welche Ausbauten es gibt, steht
 in `scripts/data/upgrade_catalog.gd`; ein neuer Ausbau ist dort ein Eintrag.
 
+### Szenen rufen sich mit Typ
+
+Szenen, die sich gegenseitig steuern, taten das früher über Zeichenketten:
+
+```gdscript
+_hud.call("set_shop_reachable", at_counter)   # früher
+_hud.set_shop_reachable(at_counter)           # heute
+```
+
+Dafür tragen die beteiligten Knoten einen `class_name` (`RescueHUD`,
+`TouchControls`) und die Verweise sind entsprechend deklariert. Der Gewinn ist
+messbar: `pwsh tools/lint_scripts.ps1` meldet jetzt falsche Argumenttypen und
+falsche Argumentzahlen mit Datei, Zeile und Methodenname, bevor die Szene je
+geladen wird. Beim Aufruf über `call()` fiel derselbe Fehler frühestens auf,
+wenn ein Spieler genau diese Stelle erreichte.
+
+Eine Lücke bleibt: GDScript wertet einen **unbekannten Methodennamen** auf
+einem Knoten nicht als Fehler, weil Objekte zur Laufzeit Methoden bekommen
+können. Ein Tippfehler im Namen fällt also weiterhin erst den Tests auf – dafür
+gibt es `--test`, `--playtest` und `--smoketest`.
+
+Bewusst als `call()` belassen sind die zwei Stellen, an denen der Aufruf
+wirklich optional ist und mit `has_method()` abgesichert wird:
+`scene_router.gd` fragt Szenen nach `prepare_to_leave`, und
+`scripts/dev/screenshot_capture.gd` betätigt für Bildschirmfotos gezielt
+interne Funktionen fremder Szenen.
+
 ### Technische Eckdaten
 - **Godot 4.7.2**, GDScript
 - Renderer `gl_compatibility` (OpenGL ES 3.0) – größte Abdeckung auf Android

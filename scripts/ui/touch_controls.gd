@@ -5,6 +5,9 @@
 ##
 ## Sichtbar ist die Bedienung nur auf Geraeten mit Touchscreen -- in den
 ## Optionen laesst sie sich aber erzwingen, um am PC zu testen.
+##
+## Heisst bewusst nicht `VirtualJoystick` -- den Namen vergibt Godot 4.7 selbst.
+class_name TouchControls
 extends CanvasLayer
 
 ## Wird ausgeloest, wenn der Aktionsknopf gedrueckt wird.

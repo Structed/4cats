@@ -1,6 +1,10 @@
 class_name AnalyticsConsent
 extends Control
 
+## Der Dienst wird hereingereicht statt als Autoload geholt, damit die Tests
+## eine eigene Instanz mit eigener Datei benutzen koennen.
+const AnalyticsService := preload("res://scripts/autoload/analytics_manager.gd")
+
 const SUMMARY := (
 	"Mit deiner Erlaubnis zählen wir Spielzeit und Spielaktionen, zum Beispiel Katzenrettungen. "
 	+ "Das hilft uns, 4cats zu verbessern.\n\n"
@@ -10,7 +14,7 @@ const SUMMARY := (
 	+ "Optionen > Nutzungsanalyse ändern."
 )
 
-var _service: Node
+var _service: AnalyticsService
 var _message: RichTextLabel
 var _status: Label
 var _details: Button
@@ -70,13 +74,13 @@ func _ready() -> void:
 	hide()
 
 
-func present(service: Node) -> void:
+func present(service: AnalyticsService) -> void:
 	_service = service
-	var available: bool = service.call("is_available")
-	var consent: bool = service.call("has_consent")
+	var available := service.is_available()
+	var consent := service.has_consent()
 	_show_details = false
 	_refresh_message()
-	_status.text = String(service.get("last_error"))
+	_status.text = service.last_error
 	if not available and _status.text.is_empty():
 		_status.text = "In diesem Build ist die Nutzungsanalyse nicht verfügbar."
 	_status.visible = not _status.text.is_empty()
@@ -97,7 +101,7 @@ func _toggle_details() -> void:
 
 
 func _refresh_message() -> void:
-	_message.text = String(_service.call("privacy_text")) if _show_details else SUMMARY
+	_message.text = _service.privacy_text() if _show_details else SUMMARY
 	_message.scroll_to_line(0)
 	UiKit.set_button_text(_details,
 		"Zurück zur Kurzfassung" if _show_details else "Mehr zum Datenschutz")
@@ -117,27 +121,27 @@ func _configure_focus(available: bool) -> void:
 
 
 func dismiss() -> void:
-	if _service != null and bool(_service.call("needs_consent")):
+	if _service != null and _service.needs_consent():
 		_choose(false)
 	else:
 		_close()
 
 
 func _decline_choice() -> void:
-	if bool(_service.call("is_available")):
+	if _service.is_available():
 		_choose(false)
 	else:
 		_close()
 
 
 func _choose(allow: bool) -> void:
-	if allow and bool(_service.call("has_consent")):
+	if allow and _service.has_consent():
 		_close()
 		return
-	if bool(_service.call("set_consent", allow)):
+	if _service.set_consent(allow):
 		_close()
 	else:
-		_status.text = String(_service.get("last_error"))
+		_status.text = _service.last_error
 		_status.show()
 		_refresh_message()
 		UiKit.set_button_text(_accept, "Ja, erlauben")
