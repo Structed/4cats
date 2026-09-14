@@ -32,8 +32,7 @@ var _shop_panel: PanelContainer
 var _shop_message: Label
 var _shop_close: Button
 var _supplies: SupplyPanel
-var _saved_focus: Control
-var _modal: String = ""
+var _modals: ModalHost
 var _leaving: bool = false
 var _physics_before_modal: bool = true
 var _home_focus_before_modal: Control.FocusMode = Control.FOCUS_ALL
@@ -42,7 +41,7 @@ var _home_disabled_before_modal: bool = false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_set_pause_visible(false)
+	_modals = ModalHost.new(self)
 	_hint_label.text = ""
 	_care_alerts = CareAlerts.new()
 	_care_alerts.name = "CareAlerts"
@@ -53,13 +52,15 @@ func _ready() -> void:
 	]:
 		UiKit.decorate(scene_button)
 	_build_shop_dialog()
+	_modals.register("pause", _pause_panel, _pause_dim)
+	_modals.register("shop", _shop_panel, _shop_dim)
 
 	GameState.carried_changed.connect(_on_carried_changed)
 	GameState.coins_changed.connect(_on_coins_changed)
 	GameState.cat_adopted.connect(_on_cat_adopted)
 	GameState.cat_died.connect(_on_cat_died)
 	SaveManager.save_failed.connect(set_hint)
-	get_viewport().gui_focus_changed.connect(_guard_modal_focus)
+	get_viewport().gui_focus_changed.connect(_modals.guard_focus)
 
 	_home_button.pressed.connect(_on_home_pressed)
 	_resume_button.pressed.connect(func() -> void: toggle_pause())
@@ -72,8 +73,8 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_layout_care_alerts()
-	if not _modal.is_empty():
-		_link_modal_focus()
+	if _modals.is_open():
+		_modals.link_focus()
 	if _hint_timer > 0.0:
 		_hint_timer -= delta
 		if _hint_timer <= 0.0:
@@ -84,7 +85,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and not event.is_echo():
 		toggle_pause()
 		get_viewport().set_input_as_handled()
-	elif not _modal.is_empty() and event.is_action("interact"):
+	elif _modals.is_open() and event.is_action("interact"):
 		get_viewport().set_input_as_handled()
 
 
@@ -114,7 +115,7 @@ func set_home_navigation(
 func toggle_pause() -> void:
 	if _leaving or bool(SceneRouter.get("_busy")):
 		return
-	if not _modal.is_empty():
+	if _modals.is_open():
 		close_shop()
 	elif not get_tree().paused:
 		_open_modal("pause")
@@ -133,7 +134,7 @@ func set_shop_reachable(reachable: bool) -> void:
 
 
 func open_shop() -> bool:
-	if _leaving or not _modal.is_empty() or get_tree().paused \
+	if _leaving or _modals.is_open() or get_tree().paused \
 			or bool(SceneRouter.get("_busy")) or not is_instance_valid(_shop) \
 			or not _shop.can_interact(_player):
 		return false
@@ -145,7 +146,7 @@ func open_shop() -> bool:
 
 
 func is_shop_open() -> bool:
-	return _modal == "shop"
+	return _modals.kind == "shop"
 
 
 func _build_shop_dialog() -> void:
@@ -214,7 +215,10 @@ func _on_shop_message(text: String) -> void:
 
 
 func _open_modal(kind: String) -> void:
-	_saved_focus = get_viewport().gui_get_focus_owner()
+	# Zuerst oeffnen: der Fokus muss gemerkt sein, bevor der Heimweg-Knopf
+	# abgeschaltet wird -- sonst ist er schon verloren.
+	if not _modals.open(kind):
+		return
 	_home_focus_before_modal = _home_button.focus_mode
 	_home_disabled_before_modal = _home_button.disabled
 	_home_button.focus_mode = Control.FOCUS_NONE
@@ -224,40 +228,31 @@ func _open_modal(kind: String) -> void:
 		_player.velocity = Vector2.ZERO
 		_player.set_physics_process(false)
 	_release_controls()
-	_modal = kind
 	get_tree().paused = true
 	AnalyticsManager.player_activity()
-	_set_pause_visible(kind == "pause")
-	_shop_dim.visible = kind == "shop"
-	_shop_panel.visible = kind == "shop"
 	# Die Warnungen bleiben links neben dem Kaufdialog ungedimmt lesbar.
 	_care_alerts.z_index = 2 if kind == "shop" else 0
-	_focus_first.call_deferred()
+	_modals.focus_first.call_deferred()
 
 
 func close_shop() -> void:
-	if _modal.is_empty():
+	if not _modals.is_open():
 		return
-	_modal = ""
-	_set_pause_visible(false)
-	_shop_panel.hide()
-	_shop_dim.hide()
+	_modals.close()
 	_care_alerts.z_index = 0
-	get_viewport().gui_release_focus()
 	_home_button.focus_mode = _home_focus_before_modal
 	_home_button.disabled = _home_disabled_before_modal
 	_release_controls()
 	get_tree().paused = false
 	AnalyticsManager.player_activity()
-	if not _leaving:
-		if is_instance_valid(_player):
-			_player.set_physics_process(_physics_before_modal)
-		if is_instance_valid(_touch):
-			_touch.call("set_enabled", true)
-		if is_instance_valid(_saved_focus) and _saved_focus.is_visible_in_tree() \
-				and _saved_focus.focus_mode != Control.FOCUS_NONE:
-			_saved_focus.grab_focus()
-	_saved_focus = null
+	if _leaving:
+		_modals.forget_focus()
+		return
+	if is_instance_valid(_player):
+		_player.set_physics_process(_physics_before_modal)
+	if is_instance_valid(_touch):
+		_touch.call("set_enabled", true)
+	_modals.restore_focus()
 
 
 func _release_controls() -> void:
@@ -267,51 +262,6 @@ func _release_controls() -> void:
 		Input.action_release(action)
 	if is_instance_valid(_player):
 		_player.velocity = Vector2.ZERO
-
-
-func _modal_buttons() -> Array[Button]:
-	var buttons: Array[Button] = []
-	if _modal == "shop":
-		for child in _supplies.get_children():
-			if child is Button and not (child as Button).disabled:
-				buttons.append(child as Button)
-		buttons.append(_shop_close)
-	elif _modal == "pause":
-		buttons.assign([_resume_button, _to_home_button, _to_menu_button])
-	return buttons
-
-
-func _link_modal_focus() -> void:
-	var buttons: Array[Button] = _modal_buttons()
-	for index in buttons.size():
-		var button: Button = buttons[index]
-		var next: Button = buttons[(index + 1) % buttons.size()]
-		var previous: Button = buttons[posmod(index - 1, buttons.size())]
-		button.focus_next = button.get_path_to(next)
-		button.focus_previous = button.get_path_to(previous)
-		button.focus_neighbor_top = button.get_path_to(previous)
-		button.focus_neighbor_bottom = button.get_path_to(next)
-		button.focus_neighbor_left = button.get_path_to(previous)
-		button.focus_neighbor_right = button.get_path_to(next)
-	var focused := get_viewport().gui_get_focus_owner()
-	if focused == null or (focused is Button and (focused as Button).disabled):
-		_focus_first()
-
-
-func _focus_first() -> void:
-	if not is_inside_tree() or _modal.is_empty():
-		return
-	var buttons: Array[Button] = _modal_buttons()
-	if not buttons.is_empty():
-		buttons[0].grab_focus()
-
-
-func _guard_modal_focus(control: Control) -> void:
-	if _modal.is_empty() or control == null:
-		return
-	var panel: Control = _shop_panel if _modal == "shop" else _pause_panel
-	if not panel.is_ancestor_of(control):
-		_focus_first.call_deferred()
 
 
 func _layout_care_alerts() -> void:
@@ -324,12 +274,6 @@ func _layout_care_alerts() -> void:
 		_care_alerts.position.x = rect.end.x + 8
 
 
-## Blendet Abdunklung und Pausenfenster gemeinsam ein oder aus.
-func _set_pause_visible(shown: bool) -> void:
-	_pause_panel.visible = shown
-	_pause_dim.visible = shown
-
-
 func _on_carried_changed(carried: int, capacity: int) -> void:
 	_carry_label.text = "Katzen dabei: %d / %d" % [carried, capacity]
 
@@ -339,7 +283,7 @@ func _on_coins_changed(amount: int) -> void:
 
 
 func _on_home_pressed() -> void:
-	if _leaving or _modal == "shop":
+	if _leaving or _modals.kind == "shop":
 		return
 	AudioManager.play_sfx("ui_click")
 	prepare_to_leave()
@@ -361,6 +305,6 @@ func prepare_to_leave() -> void:
 
 
 func _exit_tree() -> void:
-	if not _modal.is_empty():
+	if _modals.is_open():
 		get_tree().paused = false
 	_release_controls()

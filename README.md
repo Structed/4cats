@@ -269,7 +269,8 @@ scripts/
   data/                  Katzen, Hauszustand, Vorräte, Lieferungen und Schwierigkeitsregeln
   rescue/                Spieler, Katzen-Verhalten, Level-Erzeugung, Gefahren
   home/                  Haus-Simulation, Wegfindung, Einrichtung, Versorgung, Pflege und HUD
-  ui/                    Menü, HUD, virtueller Joystick, Knopf-Fabrik (`ui_kit.gd`)
+  ui/                    Menü, HUD, virtueller Joystick, Knopf-Fabrik (`ui_kit.gd`),
+                         Modal-Steuerung (`modal_host.gd`)
   dev/                   Entwicklungshilfen (nicht Teil des Spiels)
 resources/               TileSet und UI-Design
 assets/                  Grafik und Ton (siehe CREDITS.md)
@@ -318,6 +319,24 @@ Beschriftungen, die sich zur Laufzeit ändern, gehören über
 `UiKit.set_button_text()` gesetzt — eine direkte Zuweisung an `.text` würde in
 der Darstellung `icon` wieder Text einblenden. `tools/test_ui_kit.gd` sichert
 das zusammen mit der Vollständigkeit der Symbolzuordnung ab.
+
+### Fenster über dem Spiel
+
+Pausenfenster, Kaufdialog und die Menüs im Haus laufen über
+`scripts/ui/modal_host.gd`. Der Host kümmert sich um Abdunklung, Sichtbarkeit,
+den gemerkten Fokus und darum, dass Tastatur und Gamepad im Fenster bleiben und
+am Ende der Liste wieder von vorn beginnen. Ein Fenster anzumelden ist eine
+Zeile:
+
+```gdscript
+_modals = ModalHost.new(self)
+_modals.register("pause", _pause_panel, _pause_dim)
+```
+
+Beim Besitzer bleibt nur, was wirklich nur ihn angeht: das Anhalten der
+Spielwelt, die Spielfigur und der Inhalt des Fensters. Den Fokusring liest der
+Host aus dem Szenenbaum — ein Knopf mehr im Fenster braucht deshalb keine
+zweite Änderung an anderer Stelle. `tools/test_modal_host.gd` sichert das ab.
 
 ### Technische Eckdaten
 - **Godot 4.7.2**, GDScript

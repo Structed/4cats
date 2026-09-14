@@ -19,6 +19,7 @@ signal item_purchased(kind: String)
 signal upgrade_requested(id: String)
 
 var modal_kind: String = ""
+var _modals: ModalHost
 var _coins: Label
 var _info: Label
 var _hint: Label
@@ -160,10 +161,16 @@ func _ready() -> void:
 	box.add_child(_modal_notice)
 	_modal_notice.hide()
 	_button("Schließen", "ModalCloseButton", box).pressed.connect(func() -> void: close_requested.emit())
+	_modals = ModalHost.new(self)
+	for kind in ["furnish", "supplies", "shop", "pause"]:
+		_modals.register(kind, _panel, _dim)
+	get_viewport().gui_focus_changed.connect(_modals.guard_focus)
 	close_modal()
 	refresh()
 
 func _process(delta: float) -> void:
+	if _modals.is_open():
+		_modals.link_focus()
 	_hint_panel.offset_top = -8.0 - _hint_panel.get_combined_minimum_size().y
 	var bottom := _hint_panel.offset_top - 8.0 if _hint_panel.visible else -8.0
 	_toast_panel.offset_bottom = bottom
@@ -309,22 +316,19 @@ func set_building(building: bool) -> void:
 		_toast_panel.hide()
 
 func open_modal(kind: String) -> void:
+	if not _modals.open(kind):
+		return
 	modal_kind = kind
 	_cat_panel.hide()
 	_toast_panel.hide()
 	_modal_notice.hide()
 	_hint_panel.hide()
-	_dim.show()
-	_panel.show()
 	_populate()
-	var first := _content.find_next_valid_focus()
-	if first != null:
-		first.grab_focus()
+	_modals.focus_first()
 
 func close_modal() -> void:
 	modal_kind = ""
-	_dim.hide()
-	_panel.hide()
+	_modals.close()
 	_modal_notice.hide()
 	_toast_panel.visible = _toast_time > 0.0
 	set_hint("")
