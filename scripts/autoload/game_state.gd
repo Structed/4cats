@@ -1,6 +1,10 @@
 ## Zentraler Spielzustand: getragene Katzen, Katzen zu Hause, Muenzen, Upgrades.
 ##
 ## Autoload -- ueberall als `GameState` erreichbar.
+##
+## Die Daten liegen in Abschnitten unter scripts/state/, die Pflegeregeln in
+## NeedsSimulation. Diese Datei haelt sie zusammen und meldet Aenderungen ueber
+## Signale weiter.
 extends Node
 
 signal coins_changed(amount: int)
@@ -21,64 +25,83 @@ const ADOPTION_REWARD := 25
 ## Grundkapazitaet, bevor Upgrades greifen.
 const BASE_CARRY_CAPACITY := 2
 
-## Abbau pro Sekunde bei Upgrade-Stufe 0.
-const DECAY_HUNGER := 0.30
-const DECAY_THIRST := 0.40
-const DECAY_CLEANLINESS := 0.15
+## Definition aller Upgrades. Gepflegt wird sie im UpgradeCatalog.
+const UPGRADES := UpgradeCatalog.ENTRIES
 
-## Zusatzschaden auf die Gesundheit, wenn Hunger oder Durst bei 0 stehen.
-const HEALTH_DECAY_WHEN_STARVING := 0.5
+# --- Abschnitte des Spielstands ---------------------------------------------
+# Jeder Abschnitt haelt seine eigenen Felder und kennt sein eigenes Format.
+# Dauerhafte Daten fuer ein neues Feature sind deshalb eine neue Datei unter
+# scripts/state/ und ein Eintrag in _sections -- nicht vier neue Zeilen quer
+# durch reset(), to_dict() und from_dict().
 
-## Definition aller Upgrades. `costs` enthaelt den Preis je Stufe.
-const UPGRADES := {
-	"carry_capacity": {
-		"name": "Tragekorb",
-		"description": "Du kannst eine Katze mehr gleichzeitig tragen.",
-		"costs": [50, 120, 260],
-	},
-	"treats": {
-		"name": "Leckerlis",
-		"description": "Katzen fassen schneller Vertrauen und sind weniger scheu.",
-		"costs": [40, 100, 220],
-	},
-	"comfort": {
-		"name": "Komfort",
-		"description": "Bedürfnisse sinken zu Hause langsamer.",
-		"costs": [60, 140, 300],
-	},
-	"vet": {
-		"name": "Tierarzt",
-		"description": "Katzen genesen schneller und werden früher vermittelt.",
-		"costs": [70, 160, 340],
-	},
-}
+var _progress := ProgressSection.new()
+var _upgrades := UpgradeSection.new()
+var _roster := RosterSection.new()
+var _supply := SupplySection.new()
+var _house := HomeSection.new()
+var _stats := StatsSection.new()
+var _sections: Array[SaveSection] = []
 
-var coins: int = 0
-var rescued_total: int = 0
-var adopted_total: int = 0
-var deceased_total: int = 0
-var last_loss_name: String = ""
-var difficulty_id: String = DifficultyRules.DEFAULT
-var supplies: SupplyState
+## Beduerfnisse, Lebensgefahr und Genesung der Hauskatzen.
+var _needs := NeedsSimulation.new()
+
 var supply_actions: SupplyActions
-var analytics: GameplayStats
-var _critical_cats: Dictionary = {}
-
-## Katzen, die der Spieler gerade traegt.
-var carried_cats: Array[CatData] = []
-
-## Katzen, die zu Hause leben.
-var home_cats: Array[CatData] = []
-var home: HomeData
 var home_simulation: HomeSimulation
 var simulation_active: bool = false
 
+# --- Felder der Abschnitte --------------------------------------------------
+# Weitergereicht, damit Aufrufstellen weiter `GameState.coins` lesen und
+# schreiben koennen, ohne den Aufbau der Abschnitte zu kennen.
+
+var coins: int:
+	get: return _progress.coins
+	set(value): _progress.coins = value
+
+var rescued_total: int:
+	get: return _progress.rescued_total
+	set(value): _progress.rescued_total = value
+
+var adopted_total: int:
+	get: return _progress.adopted_total
+	set(value): _progress.adopted_total = value
+
+var deceased_total: int:
+	get: return _progress.deceased_total
+	set(value): _progress.deceased_total = value
+
+var last_loss_name: String:
+	get: return _progress.last_loss_name
+	set(value): _progress.last_loss_name = value
+
+var difficulty_id: String:
+	get: return _progress.difficulty_id
+	set(value): _progress.difficulty_id = value
+
 ## Upgrade-Id -> gekaufte Stufe (0 = nicht gekauft).
-var upgrade_levels: Dictionary = {}
+var upgrade_levels: Dictionary:
+	get: return _upgrades.levels
+
+## Katzen, die der Spieler gerade traegt.
+var carried_cats: Array[CatData]:
+	get: return _roster.carried
+
+## Katzen, die zu Hause leben.
+var home_cats: Array[CatData]:
+	get: return _roster.at_home
+
+var supplies: SupplyState:
+	get: return _supply.state
+
+var home: HomeData:
+	get: return _house.house
+
+var analytics: GameplayStats:
+	get: return _stats.stats
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_sections = [_progress, _upgrades, _roster, _supply, _house, _stats]
 	reset()
 
 
@@ -94,23 +117,10 @@ func reset(mode: String = DifficultyRules.DEFAULT) -> void:
 	if not DifficultyRules.IDS.has(mode):
 		push_error("Unbekannter Schwierigkeitsgrad: %s" % mode)
 		return
-	coins = 0
-	rescued_total = 0
-	adopted_total = 0
-	deceased_total = 0
-	last_loss_name = ""
-	difficulty_id = mode
-	analytics = GameplayStats.new()
-	_critical_cats.clear()
-	carried_cats.clear()
-	home_cats.clear()
-	home = HomeData.starter()
-	supplies = SupplyState.new()
+	for section in _sections:
+		section.reset(mode)
 	_bind_home()
 	simulation_active = false
-	upgrade_levels.clear()
-	for key: String in UPGRADES:
-		upgrade_levels[key] = 0
 	coins_changed.emit(coins)
 	home_cats_changed.emit()
 	home_layout_changed.emit()
@@ -128,11 +138,7 @@ func _bind_home() -> void:
 	home_simulation.cat_picked_up.connect(_on_home_cat_picked_up)
 	home_simulation.supply_consumed.connect(_on_supply_consumed)
 	supply_actions = SupplyActions.new(supplies, home, home_simulation)
-	_critical_cats.clear()
-	if DifficultyRules.allows_death(difficulty_id):
-		for cat in home_cats:
-			if cat.is_starving() and is_zero_approx(cat.health):
-				_critical_cats[cat.id] = true
+	_needs.rebuild(home_cats, difficulty_id)
 
 
 # --- Tragen -----------------------------------------------------------------
@@ -190,12 +196,12 @@ func lose_carried_cat() -> CatData:
 
 ## Multiplikator fuer den Beduerfnis-Abbau -- jede Komfort-Stufe bremst um 15 %.
 func decay_multiplier() -> float:
-	return pow(0.85, float(upgrade_level("comfort"))) * DifficultyRules.value(difficulty_id, "decay")
+	return _upgrades.effect("comfort", 0.85) * DifficultyRules.value(difficulty_id, "decay")
 
 
 ## Multiplikator fuer die Genesungsdauer -- jede Tierarzt-Stufe spart 20 %.
 func recovery_multiplier() -> float:
-	return pow(0.8, float(upgrade_level("vet")))
+	return _upgrades.effect("vet", 0.8)
 
 
 func recovery_rate() -> float:
@@ -209,7 +215,7 @@ func recovery_seconds_remaining(cat: CatData) -> float:
 
 ## Scheu-Multiplikator -- jede Leckerli-Stufe macht Katzen 20 % zutraulicher.
 func shyness_multiplier() -> float:
-	return pow(0.8, float(upgrade_level("treats")))
+	return _upgrades.effect("treats", 0.8)
 
 
 func _tick_needs(delta: float) -> bool:
@@ -223,59 +229,14 @@ func _tick_needs(delta: float) -> bool:
 	if home_cats.is_empty():
 		return arrived
 
-	var decay := decay_multiplier() * delta
-	var already_critical := {}
-	for cat in home_cats:
-		already_critical[cat.id] = cat.is_starving() and is_zero_approx(cat.health)
-		cat.hunger = maxf(cat.hunger - DECAY_HUNGER * decay, 0.0)
-		cat.thirst = maxf(cat.thirst - DECAY_THIRST * decay, 0.0)
-		cat.cleanliness = maxf(cat.cleanliness - DECAY_CLEANLINESS * decay, 0.0)
-		cat.enrichment = maxf(cat.enrichment - HomeSimulation.DECAY_ENRICHMENT * decay, 0.0)
-
-		# Die Gesundheit faellt nur, wenn die Katze wirklich vernachlaessigt wird.
-		if cat.is_starving():
-			var damage := DifficultyRules.value(difficulty_id, "damage")
-			if cat.age_group == CatData.Age.SENIOR:
-				damage *= DifficultyRules.value(difficulty_id, "senior")
-			cat.health = maxf(cat.health - HEALTH_DECAY_WHEN_STARVING * decay * damage, 0.0)
-
-	home_simulation.step(delta)
-	var recovery_speed := recovery_rate()
-	var adopted: Array[CatData] = []
-	var deceased: Array[CatData] = []
-	var care_event := false
-	for cat in home_cats:
-		if DifficultyRules.allows_death(difficulty_id) and cat.is_starving() \
-				and is_zero_approx(cat.health):
-			if not _critical_cats.has(cat.id):
-				_critical_cats[cat.id] = true
-				analytics.record("cat_became_critical")
-				care_event = true
-			# Der Schritt, der Gesundheit auf null senkt, verbraucht keine Schonfrist.
-			if bool(already_critical[cat.id]):
-				cat.critical_elapsed += delta
-			if cat.critical_elapsed >= DifficultyRules.value(difficulty_id, "grace"):
-				deceased.append(cat)
-				continue
-		else:
-			if _critical_cats.erase(cat.id):
-				analytics.record("cat_recovered_from_critical")
-				care_event = true
-			cat.critical_elapsed = 0.0
-		if cat.all_needs_met():
-			cat.recovery_timer += delta * recovery_speed
-			if cat.recovery_timer >= CatData.RECOVERY_SECONDS \
-					and home_simulation.held_cat_id != cat.id:
-				adopted.append(cat)
-		else:
-			# Rueckschlag, aber nicht komplett bei null anfangen.
-			cat.recovery_timer = maxf(cat.recovery_timer - delta * 2.0, 0.0)
-
-	for cat in adopted:
+	_needs.step(delta, home_cats, home_simulation, difficulty_id,
+		decay_multiplier() * delta, recovery_rate(), analytics)
+	for cat in _needs.adopted:
 		_adopt(cat)
-	for cat in deceased:
+	for cat in _needs.deceased:
 		_die(cat)
-	return arrived or care_event or not adopted.is_empty() or not deceased.is_empty()
+	return arrived or _needs.care_event or not _needs.adopted.is_empty() \
+		or not _needs.deceased.is_empty()
 
 
 func _adopt(cat: CatData) -> void:
@@ -293,7 +254,7 @@ func _remove_home_cat(cat: CatData, outcome: CatData.State) -> bool:
 	if not home_cats.has(cat):
 		return false
 	home_cats.erase(cat)
-	_critical_cats.erase(cat.id)
+	_needs.forget(cat.id)
 	home_simulation.sync_cats()
 	cat.state = outcome
 	return true
@@ -442,34 +403,27 @@ func add_coins(amount: int) -> void:
 
 
 func upgrade_level(upgrade_id: String) -> int:
-	return int(upgrade_levels.get(upgrade_id, 0))
+	return _upgrades.level(upgrade_id)
 
 
 func upgrade_max_level(upgrade_id: String) -> int:
-	if not UPGRADES.has(upgrade_id):
-		return 0
-	return (UPGRADES[upgrade_id]["costs"] as Array).size()
+	return UpgradeCatalog.max_level(upgrade_id)
 
 
 ## Preis der naechsten Stufe, oder -1 wenn bereits voll ausgebaut.
 func upgrade_cost(upgrade_id: String) -> int:
-	var level := upgrade_level(upgrade_id)
-	if level >= upgrade_max_level(upgrade_id):
-		return -1
-	return int((UPGRADES[upgrade_id]["costs"] as Array)[level])
+	return _upgrades.cost(upgrade_id)
 
 
 func can_afford_upgrade(upgrade_id: String) -> bool:
-	var cost := upgrade_cost(upgrade_id)
-	return cost >= 0 and coins >= cost
+	return _upgrades.can_afford(upgrade_id, coins)
 
 
 func purchase_upgrade(upgrade_id: String) -> bool:
 	if not can_afford_upgrade(upgrade_id):
 		return false
 	add_coins(-upgrade_cost(upgrade_id))
-	var level := upgrade_level(upgrade_id) + 1
-	upgrade_levels[upgrade_id] = level
+	var level := _upgrades.purchase(upgrade_id)
 	upgrade_purchased.emit(upgrade_id, level)
 	if upgrade_id == "carry_capacity":
 		carried_changed.emit(carried_cats.size(), carry_capacity())
@@ -523,117 +477,23 @@ func store_home_item(id: String) -> String:
 	home_layout_changed.emit()
 	return ""
 
+
 func to_dict() -> Dictionary:
-	var carried: Array = []
-	for cat in carried_cats:
-		carried.append(cat.to_dict())
-	var at_home: Array = []
-	for cat in home_cats:
-		at_home.append(cat.to_dict())
-	return {
-		"coins": coins,
-		"rescued_total": rescued_total,
-		"adopted_total": adopted_total,
-		"deceased_total": deceased_total,
-		"last_loss_name": last_loss_name,
-		"difficulty_id": difficulty_id,
-		"supplies": supplies.to_dict(),
-		"analytics": analytics.to_dict(),
-		"carried_cats": carried,
-		"home_cats": at_home,
-		"upgrade_levels": upgrade_levels.duplicate(),
-		"home": home.to_dict(),
-	}
+	var data := {}
+	for section in _sections:
+		section.write(data)
+	return data
 
 
 func from_dict(data: Dictionary) -> bool:
-	var raw_analytics: Variant = data.get("analytics")
-	if raw_analytics is not Dictionary:
-		push_warning("Im Spielstand fehlt die lokale Statistik.")
-		return false
-	var loaded_analytics := GameplayStats.from_dict(raw_analytics)
-	if loaded_analytics == null:
-		push_warning("Die lokale Spielstatistik ist beschädigt.")
-		return false
-	var mode: Variant = data.get("difficulty_id")
-	var raw_supplies: Variant = data.get("supplies")
-	if mode is not String or not DifficultyRules.IDS.has(mode) or raw_supplies is not Dictionary:
-		push_warning("Im Spielstand fehlen gültige Versorgungsregeln.")
-		return false
-	var loaded_supplies := SupplyState.from_dict(raw_supplies)
-	if loaded_supplies == null or not SupplyCatalog.is_count(data.get("deceased_total")) \
-			or data.get("last_loss_name") is not String:
-		push_warning("Die gespeicherten Vorräte oder Verlustdaten sind beschädigt.")
-		return false
-	for order in loaded_supplies.orders:
-		if order.remaining > DifficultyRules.value(mode, "delivery_seconds"):
-			push_warning("Die gespeicherte Lieferzeit ist ungültig.")
+	# Erst pruefen alle Abschnitte, danach uebernehmen sie. Ein beschaedigter
+	# Spielstand laesst den laufenden Zustand damit unveraendert.
+	for section in _sections:
+		if not section.read(data):
 			return false
-	var raw_home: Variant = data.get("home")
-	if raw_home is not Dictionary:
-		push_warning("Im Spielstand fehlen die Hausdaten.")
-		return false
-	var loaded_home := HomeData.from_dict(raw_home)
-	if loaded_home == null:
-		push_warning("Die gespeicherten Hausdaten sind beschaedigt.")
-		return false
-	var loaded_layout := HomeLayout.new(loaded_home)
-	var layout_error := loaded_layout.save_error()
-	if not layout_error.is_empty():
-		push_warning("Hausspielstand: %s" % layout_error)
-		return false
-	var loaded_carried: Array[CatData] = []
-	var loaded_cats: Array[CatData] = []
-	var cat_ids := {}
-	for key in ["carried_cats", "home_cats"]:
-		var entries: Variant = data.get(key, [])
-		if entries is not Array:
-			push_warning("Die gespeicherte Katzenliste ist beschädigt.")
-			return false
-		for entry: Variant in entries:
-			if entry is not Dictionary:
-				push_warning("Die gespeicherten Katzendaten sind beschädigt.")
-				return false
-			var cat := CatData.from_dict(entry)
-			var expected := CatData.State.CARRIED if key == "carried_cats" else CatData.State.AT_HOME
-			if cat == null or cat.id.is_empty() or cat_ids.has(cat.id) or cat.state != expected:
-				push_warning("Ungültige oder doppelte Katze im Spielstand.")
-				return false
-			cat_ids[cat.id] = true
-			if key == "carried_cats":
-				loaded_carried.append(cat)
-			else:
-				loaded_cats.append(cat)
-	var stored: Variant = data.get("upgrade_levels", {})
-	if stored is not Dictionary:
-		push_warning("Die gespeicherten Ausbauten sind beschädigt.")
-		return false
-	for key in ["coins", "rescued_total", "adopted_total"]:
-		if not SupplyCatalog.is_count(data.get(key, 0)):
-			push_warning("Die gespeicherten Zähler sind beschädigt.")
-			return false
-	for key: String in UPGRADES:
-		if not SupplyCatalog.is_count(stored.get(key, 0)):
-			push_warning("Die gespeicherten Ausbaustufen sind beschädigt.")
-			return false
-	coins = int(data.get("coins", 0))
-	rescued_total = int(data.get("rescued_total", 0))
-	adopted_total = int(data.get("adopted_total", 0))
-	deceased_total = int(data["deceased_total"])
-	last_loss_name = data["last_loss_name"]
-	difficulty_id = mode
-	supplies = loaded_supplies
-	analytics = loaded_analytics
-	carried_cats.assign(loaded_carried)
-	home_cats.assign(loaded_cats)
-	home = loaded_home
+	for section in _sections:
+		section.commit()
 	_bind_home()
-
-	# Unbekannte Upgrade-Ids aus alten Staenden werden verworfen.
-	upgrade_levels.clear()
-	for key: String in UPGRADES:
-		upgrade_levels[key] = clampi(int(stored.get(key, 0)), 0, upgrade_max_level(key))
-
 	coins_changed.emit(coins)
 	home_cats_changed.emit()
 	home_layout_changed.emit()

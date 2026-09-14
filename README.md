@@ -402,6 +402,50 @@ Rückmeldungen (`toast`, `supply_result`, `save`). Sie kennt weder HUD noch
 Szene und ist deshalb ohne Spielwelt prüfbar: `tools/test_interactions.gd`
 baut die Hinweise aller Arten ohne eine einzige Szene.
 
+### Spielstand in Abschnitten
+
+`GameState` hält den Spielzustand nicht mehr selbst, sondern setzt ihn aus
+Abschnitten unter `scripts/state/` zusammen – einer je Thema:
+
+| Abschnitt | Inhalt |
+| --- | --- |
+| `ProgressSection` | Münzen, Zähler, letzter Verlust, Schwierigkeitsgrad |
+| `UpgradeSection` | gekaufte Ausbaustufen |
+| `RosterSection` | getragene Katzen und Katzen zu Hause |
+| `SupplySection` | Vorräte, Ladung, laufende Lieferungen |
+| `HomeSection` | Haus und Einrichtung |
+| `StatsSection` | lokale Spielstatistik |
+
+Jeder Abschnitt kennt sein eigenes Format:
+
+```gdscript
+class_name UpgradeSection
+extends SaveSection
+
+func write(data: Dictionary) -> void:
+    data["upgrade_levels"] = levels.duplicate()
+
+func read(data: Dictionary) -> bool:   # nur prüfen
+func commit() -> void:                 # erst danach übernehmen
+```
+
+Dauerhafte Daten für ein neues Feature sind damit **eine neue Datei und ein
+Eintrag in `_sections`** statt vier neuer Zeilen quer durch `reset()`,
+`to_dict()` und `from_dict()`. Genau diese Sammelfunktionen waren der Ort, an
+dem zwei parallel entwickelte Features immer kollidierten.
+
+Das Laden bleibt dabei atomar: erst sagen **alle** Abschnitte über `read()`,
+ob der Spielstand gültig ist, danach übernimmt `commit()` die Werte. Ein
+beschädigter Spielstand hinterlässt keinen halb geladenen Zustand.
+
+`tools/test_save_sections.gd` liest `scripts/state/` vom Datenträger und meldet
+einen Abschnitt, den niemand eingetragen hat – sonst würde er stumm nicht
+gespeichert und der Fortschritt erst beim Spieler fehlen.
+
+Die Pflegeregeln – Abbauraten, Lebensgefahr, Schonfrist und Vermittlung –
+liegen in `scripts/state/needs_simulation.gd`. Welche Ausbauten es gibt, steht
+in `scripts/data/upgrade_catalog.gd`; ein neuer Ausbau ist dort ein Eintrag.
+
 ### Technische Eckdaten
 - **Godot 4.7.2**, GDScript
 - Renderer `gl_compatibility` (OpenGL ES 3.0) – größte Abdeckung auf Android
