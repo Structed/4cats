@@ -483,8 +483,9 @@ pwsh tools\godot.ps1 --headless --path . -- --playtest --suite=shop
 # Durchlauf: alle Szenen und Knoepfe einmal anfassen
 pwsh tools/godot.ps1 --headless --path . -- --smoketest
 
-# Nur Hauptmenü und alle drei Moduswechsel beim Neustart
-pwsh tools\godot.ps1 --headless --path . -- --smoketest --suite=menus
+# Nur einzelne Teile des Durchlaufs; Namen sind auch kombinierbar
+pwsh tools\godot.ps1 --headless --path . -- --smoketest --suite=home
+pwsh tools\godot.ps1 --headless --path . -- --smoketest --suite=menu,analytics
 
 # Derselbe Durchlauf ohne jede Beschriftung; deckt auf, wo ein Test
 # noch am Knopftext statt am Knotennamen haengt
@@ -565,6 +566,23 @@ Der **Linter** ist nötig, weil Godot Parse-Fehler erst meldet, wenn ein Skript
 zur Laufzeit gebraucht wird. Er übersetzt jede Datei einzeln mit
 `godot --check-only`; Meldungen, die nur an den zur Prüfzeit fehlenden Autoloads
 hängen, werden herausgefiltert.
+
+Der **Durchlauf** besteht aus mehreren Suiten, die einzeln in `tools/smoke/`
+liegen. `tools/test_smoke.gd` startet sie nur; jede erbt von `SmokeSuite` und
+bringt die gemeinsamen Hilfen (Szene laden, Knopf drücken, Fokus prüfen,
+Touch-Geste senden) bereits mit:
+
+| Suite | Prüft |
+|---|---|
+| `menu` | Hauptmenü, dessen Aufteilung und Fokus |
+| `analytics` | Einwilligung, Widerruf und Erststart |
+| `home` | Katzenhaus: Pflege, Vermittlung, Hinweise, Touch-Einrichtung |
+| `rescue` | Rettungs-Level und Wegweiser nach Hause |
+| `flow` | Szenenwechsel, echter Weg durch die Oberfläche, Moduswahl, Weiterspielen |
+
+Ein neuer Durchlauf ist damit **eine neue Datei** in `tools/smoke/` und **eine
+Zeile** in `SUITES`. Die Reihenfolge in `SUITES` ist bedeutsam: die Suiten
+hinterlassen Spielstände, mit denen die späteren weiterarbeiten.
 
 ### Fehlerberichte
 
