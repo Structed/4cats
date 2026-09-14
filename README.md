@@ -585,8 +585,9 @@ pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
 # Spiellogik testen (Retten, Pflege, Vorräte, Lieferungen, Modi, Spielstände, Level)
 pwsh tools/godot.ps1 --headless --path . -- --test
 
-# Nur Vorräte, Lieferungen, Pflegefolgen und deren Spielstandmigration
-pwsh tools\godot.ps1 --headless --path . -- --test --suite=supplies
+# Nur einzelne Regelsuiten; Namen sind auch kombinierbar
+pwsh tools\godot.ps1 --headless --path . -- --test --suite=supplies,stats
+pwsh tools\godot.ps1 --headless --path . -- --test --suite=texts
 
 # Spieltest: Katze einfangen und zu Hause mit echter Steuerung versorgen
 pwsh tools/godot.ps1 --headless --path . -- --playtest
@@ -698,6 +699,29 @@ Touch-Geste senden) bereits mit:
 Ein neuer Durchlauf ist damit **eine neue Datei** in `tools/smoke/` und **eine
 Zeile** in `SUITES`. Die Reihenfolge in `SUITES` ist bedeutsam: die Suiten
 hinterlassen Spielstände, mit denen die späteren weiterarbeiten.
+
+Die **Regeltests** (`--test`) sind genauso aufgebaut. `tools/test_gameplay.gd`
+enthält nur noch die Grundregeln selbst; alles andere liegt in eigenen Dateien
+und steht in derselben Art Liste:
+
+| Name | Inhalt |
+| --- | --- |
+| `ui` | Knopf-Fabrik und Symbolzuordnung |
+| `modals` | Fenster über dem Spiel |
+| `panels` | Inhalt der Fenster im Haus |
+| `interactions` | bedienbare Gegenstände im Haus |
+| `sections` | Abschnitte des Spielstands |
+| `texts` | Übersetzungsschlüssel gegen `locale/de.csv` |
+| `home` | Pflege, Adoption und Wohlbefinden |
+| `supplies` | Vorräte, Lieferungen und deren Spielstandmigration |
+| `stats` | lokale Spielstatistik |
+| `shop` | Einkauf und Münzen |
+| `analytics` | Einwilligung, Warteschlange und Versand |
+
+Jede Suite ist ein `RefCounted` mit
+`run(tree: SceneTree) -> PackedStringArray`. Kommt etwas anderes als eine Liste
+zurück, gilt die Suite als abgebrochen — ein Skriptfehler darin kann so nicht
+als „bestanden" durchrutschen.
 
 ### Fehlerberichte
 

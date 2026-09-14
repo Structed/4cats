@@ -12,7 +12,7 @@ const SECTION_DIR := "res://scripts/state"
 var _failures: PackedStringArray = []
 
 
-func run() -> PackedStringArray:
+func run(_tree: SceneTree) -> PackedStringArray:
 	_failures = []
 	_test_registry_is_complete()
 	_test_fields_reach_the_save()

@@ -13,7 +13,7 @@ extends RefCounted
 var _failures: PackedStringArray = []
 
 
-func run() -> PackedStringArray:
+func run(_tree: SceneTree) -> PackedStringArray:
 	var previous := UiKit.icon_mode()
 	_test_registry()
 	_test_atlas()

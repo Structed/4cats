@@ -20,7 +20,7 @@ const DYNAMIC_KEYS: PackedStringArray = []
 var _failures: PackedStringArray = []
 
 
-func run() -> PackedStringArray:
+func run(_tree: SceneTree) -> PackedStringArray:
 	print("--- Texte: Uebersetzungsschluessel ---")
 	var known := _read_csv_keys()
 	_check(not known.is_empty(), "Die Uebersetzungsdatei enthaelt Schluessel")

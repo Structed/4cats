@@ -16,7 +16,7 @@ var _failures: PackedStringArray = []
 var _toasts: PackedStringArray = []
 
 
-func run() -> PackedStringArray:
+func run(_tree: SceneTree) -> PackedStringArray:
 	_failures = []
 	if GameState.home_simulation == null:
 		_failures.append("Interaktions-Test: GameState ist nicht eingerichtet.")
