@@ -9,7 +9,7 @@ const SEEDS: Array[int] = [11, 42, 2026, 170701, 9876543]
 var _failures: PackedStringArray = []
 
 
-func run() -> PackedStringArray:
+func run(_tree: SceneTree) -> PackedStringArray:
 	_failures.clear()
 	print("--- Laden: Generator und Erreichbarkeit ---")
 	var tileset: TileSet = load("res://resources/urban_tileset.tres")

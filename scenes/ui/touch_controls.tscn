@@ -41,8 +41,7 @@ offset_bottom = -14.0
 grow_horizontal = 0
 grow_vertical = 0
 theme_override_font_sizes/font_size = 15
-text = "Katze
-aufheben"
+text = "touch.pick_up"
 
 [node name="SprintButton" type="Button" parent="Root"]
 layout_mode = 1
@@ -58,4 +57,4 @@ grow_horizontal = 0
 grow_vertical = 0
 theme_override_font_sizes/font_size = 14
 toggle_mode = true
-text = "Rennen"
+text = "touch.sprint"

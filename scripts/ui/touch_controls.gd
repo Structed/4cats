@@ -5,6 +5,9 @@
 ##
 ## Sichtbar ist die Bedienung nur auf Geraeten mit Touchscreen -- in den
 ## Optionen laesst sie sich aber erzwingen, um am PC zu testen.
+##
+## Heisst bewusst nicht `VirtualJoystick` -- den Namen vergibt Godot 4.7 selbst.
+class_name TouchControls
 extends CanvasLayer
 
 ## Wird ausgeloest, wenn der Aktionsknopf gedrueckt wird.
@@ -26,6 +29,7 @@ var _movement_hint: Label
 
 func _ready() -> void:
 	layer = 5
+	UiKit.adopt(self)
 	_forced = bool(SaveManager.load_settings().get(SETTING_KEY, false))
 	_apply_visibility()
 
@@ -93,12 +97,8 @@ func configure_home() -> void:
 
 func _home_button(caption: String, node_name: String, action: String,
 		top: float, bottom: float) -> Button:
-	var button := Button.new()
-	button.name = node_name
-	button.text = caption
-	button.add_theme_font_size_override("font_size", 12)
+	var button := UiKit.button(caption, node_name, $Root, 12, 0)
 	button.focus_mode = Control.FOCUS_NONE
-	$Root.add_child(button)
 	button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	button.offset_left = -104
 	button.offset_right = -14
@@ -112,7 +112,7 @@ func _home_button(caption: String, node_name: String, action: String,
 
 
 func set_action_label(text: String) -> void:
-	_action_button.text = text.replace(" ", "\n")
+	UiKit.set_button_text(_action_button, text.replace(" ", "\n"))
 
 
 func set_building(building: bool) -> void:

@@ -8,7 +8,28 @@
 ##
 ## Der Test laeuft bewusst im normalen Spielstart mit, weil die Autoloads
 ## (GameState, SaveManager) nur dort zur Verfuegung stehen.
+##
+## Die meisten Pruefungen liegen in eigenen Dateien unter tools/. Eine neue
+## Suite ist dort eine neue Datei und hier eine Zeile in `SUITES`.
 extends Node
+
+## Reihenfolge ist bedeutsam: spaetere Suiten arbeiten mit Spielstaenden und
+## Einstellungen weiter, die fruehere hinterlassen haben.
+##
+## Jede Suite ist ein RefCounted mit `run(tree: SceneTree) -> PackedStringArray`.
+const SUITES := {
+	"ui": preload("res://tools/test_ui_kit.gd"),
+	"modals": preload("res://tools/test_modal_host.gd"),
+	"panels": preload("res://tools/test_panels.gd"),
+	"interactions": preload("res://tools/test_interactions.gd"),
+	"sections": preload("res://tools/test_save_sections.gd"),
+	"texts": preload("res://tools/test_translations.gd"),
+	"home": preload("res://tools/test_home_gameplay.gd"),
+	"supplies": preload("res://tools/test_supply_gameplay.gd"),
+	"stats": preload("res://tools/test_gameplay_stats.gd"),
+	"shop": preload("res://tools/test_shop_gameplay.gd"),
+	"analytics": preload("res://tools/test_analytics.gd"),
+}
 
 const INDICATOR_VIEWPORTS: Array[Vector2] = [Vector2(640, 360), Vector2(880, 360)]
 const INDICATOR_DIRECTIONS: Array[Vector2] = [
@@ -30,18 +51,30 @@ func _ready() -> void:
 
 ## Fuehrt alle Tests aus und beendet das Programm mit passendem Exit-Code.
 func run_all() -> void:
-	var suite := "all"
+	var selection := "all"
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--suite="):
-			suite = argument.trim_prefix("--suite=")
-	if suite not in ["all", "supplies"]:
-		_check(false, "Unbekannte Regelsuite: %s" % suite)
-		_finish()
-		return
-	if suite == "supplies":
-		_run_supply_tests()
-		_finish()
-		return
+			selection = argument.trim_prefix("--suite=")
+	var names: PackedStringArray = []
+	if selection == "all":
+		_run_inline_tests()
+		for suite_name: String in SUITES:
+			names.append(suite_name)
+	else:
+		# Mehrere Namen sind erlaubt: --suite=supplies,stats
+		for wanted in selection.split(",", false):
+			if not SUITES.has(wanted):
+				_check(false, "Unbekannte Regelsuite: %s" % wanted)
+				_finish()
+				return
+			names.append(wanted)
+	for suite_name in names:
+		_run_suite(suite_name)
+	_finish()
+
+
+## Die Pruefungen, die direkt in dieser Datei stehen.
+func _run_inline_tests() -> void:
 	_test_cat_data()
 	_test_movement_balance()
 	_test_home_indicator()
@@ -52,33 +85,21 @@ func run_all() -> void:
 	_test_upgrades()
 	_test_save_roundtrip()
 	_test_level_generation()
-	var home_suite: GDScript = load("res://tools/test_home_gameplay.gd")
-	var home_tests: RefCounted = home_suite.new()
-	_failures.append_array(home_tests.run(get_tree()))
-	_run_supply_tests()
-	var shop_suite: GDScript = load("res://tools/test_shop_gameplay.gd")
-	var shop_tests: RefCounted = shop_suite.new()
-	_failures.append_array(shop_tests.run())
-	var analytics_suite: GDScript = load("res://tools/test_analytics.gd")
-	if analytics_suite == null or not analytics_suite.can_instantiate():
-		_failures.append("Analytics-Tests lassen sich nicht laden.")
+
+
+func _run_suite(suite_name: String) -> void:
+	var script: GDScript = SUITES[suite_name]
+	if script == null or not script.can_instantiate():
+		_check(false, "Die Suite '%s' laesst sich nicht laden." % suite_name)
+		return
+	var suite: RefCounted = script.new()
+	# Ein Skriptfehler in der Suite laesst `run()` mit null zurueckkommen. Das
+	# darf nicht als "keine Fehler" durchgehen.
+	var result: Variant = suite.run(get_tree())
+	if result is PackedStringArray:
+		_failures.append_array(result)
 	else:
-		var analytics_tests: RefCounted = analytics_suite.new()
-		var result: Variant = analytics_tests.run(get_tree())
-		if result is PackedStringArray:
-			_failures.append_array(result)
-		else:
-			_failures.append("Analytics-Testlauf wurde mit einem Skriptfehler abgebrochen.")
-	_finish()
-
-
-func _run_supply_tests() -> void:
-	var supply_suite: GDScript = load("res://tools/test_supply_gameplay.gd")
-	var supply_tests: RefCounted = supply_suite.new()
-	_failures.append_array(supply_tests.run(get_tree()))
-	var analytics_suite: GDScript = load("res://tools/test_gameplay_stats.gd")
-	var analytics_tests: RefCounted = analytics_suite.new()
-	_failures.append_array(analytics_tests.run(get_tree()))
+		_check(false, "Die Suite '%s' wurde mit einem Skriptfehler abgebrochen." % suite_name)
 
 
 func _finish() -> void:

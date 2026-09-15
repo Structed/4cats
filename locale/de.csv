@@ -1,0 +1,43 @@
+keys,de
+menu.title,4cats
+menu.subtitle,"Streuner finden, heimbringen, gesund pflegen."
+menu.continue,Weiterspielen
+menu.new_game,Neues Spiel
+menu.options,Optionen
+menu.quit,Beenden
+menu.credits,Credits
+menu.made_with,Mit ❤️ gemacht von den Schmurfels
+menu.credits_text,"Idee, Game Design & Testing:
+Romy Maria Ebner
+Emma Ebner
+
+Umsetzung:
+Johannes Ebner
+
+Support:
+Yvonne Ebner
+
+Katze:
+Mimi Ebner"
+menu.close,Schließen
+menu.volume_master,Gesamtlautstärke
+menu.volume_sfx,Geräusche
+menu.volume_music,Musik
+menu.touch_always,Touch-Steuerung immer zeigen
+menu.mode_rules,"Der Modus bleibt für diesen Spielstand fest.
+Keine Offline-Vernachlässigung. Wasser ist immer kostenlos."
+menu.confirm_text,Ein neues Spiel überschreibt deinen Spielstand. Wirklich neu anfangen?
+menu.confirm_yes,Spiel starten
+menu.confirm_no,Abbrechen
+hud.carry,Katzen dabei: 0 / 2
+hud.coins,Münzen: 0
+hud.home,Nach Hause
+hud.shop_hint,Futterladen: oberhalb von Zuhause
+hud.pause_title,Pause
+hud.resume,Weiterspielen
+hud.to_menu,Hauptmenü
+hud.close_shop,Schließen · Esc
+touch.pick_up,"Katze
+aufheben"
+touch.sprint,Rennen
+rescue.home_label,Zuhause

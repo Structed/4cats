@@ -34,12 +34,12 @@ theme_override_constants/separation = 2
 [node name="CarryLabel" type="Label" parent="TopLeft"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Katzen dabei: 0 / 2"
+text = "hud.carry"
 
 [node name="CoinLabel" type="Label" parent="TopLeft"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Münzen: 0"
+text = "hud.coins"
 
 [node name="HomeButton" type="Button" parent="."]
 unique_name_in_owner = true
@@ -51,7 +51,7 @@ offset_top = 6.0
 offset_right = -8.0
 offset_bottom = 36.0
 grow_horizontal = 0
-text = "Nach Hause"
+text = "hud.home"
 
 [node name="HintLabel" type="Label" parent="."]
 unique_name_in_owner = true
@@ -75,7 +75,7 @@ offset_right = 288.0
 offset_bottom = 68.0
 mouse_filter = 2
 theme_override_font_sizes/font_size = 10
-text = "Futterladen: oberhalb von Zuhause"
+text = "hud.shop_hint"
 
 [node name="PauseDim" type="ColorRect" parent="."]
 unique_name_in_owner = true
@@ -107,20 +107,20 @@ theme_override_constants/separation = 8
 [node name="Title" type="Label" parent="PausePanel/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "Pause"
+text = "hud.pause_title"
 horizontal_alignment = 1
 
 [node name="ResumeButton" type="Button" parent="PausePanel/Box"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Weiterspielen"
+text = "hud.resume"
 
 [node name="ToHomeButton" type="Button" parent="PausePanel/Box"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Nach Hause"
+text = "hud.home"
 
 [node name="ToMenuButton" type="Button" parent="PausePanel/Box"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Hauptmenü"
+text = "hud.to_menu"

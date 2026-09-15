@@ -49,7 +49,7 @@ erzeugt, damit sie reproduzierbar bleiben:
 | `assets/sprites/supply_cargo.png` | `tools/generate_home_assets.ps1` | Getragene Futterportionen, Wassergefäß und Futterpaket |
 | `assets/sprites/home_tiles.png` | `tools/generate_home_assets.ps1` | Holzboden, Wand und Ausgang des Katzenhauses |
 | `assets/sprites/home_icons.png` | `tools/generate_home_assets.ps1` | Bedarfssymbole für die Gedankenblasen der Katzen |
-| `resources/home_tileset.tres` | `tools/generate_home_assets.ps1` | TileSet aus den selbst erzeugten Hausgrafiken |
+| `assets/sprites/ui_icons.png` | `tools/generate_ui_icons.ps1` | Symbolatlas für die Knöpfe der Bedienoberfläche || `resources/home_tileset.tres` | `tools/generate_home_assets.ps1` | TileSet aus den selbst erzeugten Hausgrafiken |
 
 Kenney hat kein Paket mit Katzen aus der Vogelperspektive, deshalb wurden die
 Katzen für dieses Projekt gezeichnet – bewusst im 16 × 16-Stil des Urban Packs,

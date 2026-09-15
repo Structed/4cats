@@ -56,14 +56,14 @@ stretch_mode = 5
 [node name="Title" type="Label" parent="Layout/MenuCenter/Center"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
-text = "4cats"
+text = "menu.title"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="Layout/MenuCenter/Center"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.68, 0.73, 0.8, 1)
 theme_override_font_sizes/font_size = 12
-text = "Streuner finden, heimbringen, gesund pflegen."
+text = "menu.subtitle"
 horizontal_alignment = 1
 autowrap_mode = 2
 
@@ -84,28 +84,28 @@ horizontal_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
-text = "Weiterspielen"
+text = "menu.continue"
 
 [node name="NewGameButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
-text = "Neues Spiel"
+text = "menu.new_game"
 
 [node name="OptionsButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Optionen"
+text = "menu.options"
 
 [node name="QuitButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Beenden"
+text = "menu.quit"
 
 [node name="CreditsButton" type="Button" parent="Layout/MenuCenter/Center"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Credits"
+text = "menu.credits"
 
 [node name="Footer" type="HBoxContainer" parent="Layout"]
 layout_mode = 2
@@ -117,7 +117,7 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.68, 0.73, 0.8, 1)
 theme_override_font_sizes/font_size = 11
-text = "Mit ❤️ gemacht von den Schmurfels"
+text = "menu.made_with"
 
 [node name="VersionLabel" type="Label" parent="Layout/Footer"]
 unique_name_in_owner = true
@@ -160,30 +160,19 @@ theme_override_constants/separation = 8
 [node name="Title" type="Label" parent="CreditsPanel/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 17
-text = "Credits"
+text = "menu.credits"
 horizontal_alignment = 1
 
 [node name="Text" type="Label" parent="CreditsPanel/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
-text = "Idee, Game Design & Testing:
-Romy Maria Ebner
-Emma Ebner
-
-Umsetzung:
-Johannes Ebner
-
-Support:
-Yvonne Ebner
-
-Katze:
-Mimi Ebner"
+text = "menu.credits_text"
 horizontal_alignment = 1
 
 [node name="CreditsCloseButton" type="Button" parent="CreditsPanel/Box"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Schließen"
+text = "menu.close"
 
 [node name="OptionsDim" type="ColorRect" parent="."]
 unique_name_in_owner = true
@@ -222,13 +211,13 @@ theme_override_constants/separation = 8
 [node name="Title" type="Label" parent="OptionsPanel/Scroll/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 17
-text = "Optionen"
+text = "menu.options"
 horizontal_alignment = 1
 
 [node name="MasterLabel" type="Label" parent="OptionsPanel/Scroll/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
-text = "Gesamtlautstärke"
+text = "menu.volume_master"
 
 [node name="MasterSlider" type="HSlider" parent="OptionsPanel/Scroll/Box"]
 unique_name_in_owner = true
@@ -241,7 +230,7 @@ value = 1.0
 [node name="SfxLabel" type="Label" parent="OptionsPanel/Scroll/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
-text = "Geräusche"
+text = "menu.volume_sfx"
 
 [node name="SfxSlider" type="HSlider" parent="OptionsPanel/Scroll/Box"]
 unique_name_in_owner = true
@@ -254,7 +243,7 @@ value = 1.0
 [node name="MusicLabel" type="Label" parent="OptionsPanel/Scroll/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
-text = "Musik"
+text = "menu.volume_music"
 
 [node name="MusicSlider" type="HSlider" parent="OptionsPanel/Scroll/Box"]
 unique_name_in_owner = true
@@ -268,12 +257,12 @@ value = 0.7
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "Touch-Steuerung immer zeigen"
+text = "menu.touch_always"
 
 [node name="OptionsCloseButton" type="Button" parent="OptionsPanel/Scroll/Box"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Schließen"
+text = "menu.close"
 
 [node name="ConfirmDim" type="ColorRect" parent="."]
 unique_name_in_owner = true
@@ -307,7 +296,7 @@ theme_override_constants/separation = 8
 [node name="Title" type="Label" parent="ConfirmPanel/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 17
-text = "Neues Spiel"
+text = "menu.new_game"
 horizontal_alignment = 1
 
 [node name="DifficultyChoice" type="OptionButton" parent="ConfirmPanel/Box"]
@@ -326,14 +315,13 @@ autowrap_mode = 2
 [node name="Rules" type="Label" parent="ConfirmPanel/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
-text = "Der Modus bleibt für diesen Spielstand fest.
-Keine Offline-Vernachlässigung. Wasser ist immer kostenlos."
+text = "menu.mode_rules"
 autowrap_mode = 2
 
 [node name="Text" type="Label" parent="ConfirmPanel/Box"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
-text = "Ein neues Spiel überschreibt deinen Spielstand. Wirklich neu anfangen?"
+text = "menu.confirm_text"
 horizontal_alignment = 1
 autowrap_mode = 2
 
@@ -345,10 +333,10 @@ theme_override_constants/separation = 8
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Spiel starten"
+text = "menu.confirm_yes"
 
 [node name="ConfirmNoButton" type="Button" parent="ConfirmPanel/Box/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Abbrechen"
+text = "menu.confirm_no"

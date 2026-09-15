@@ -269,7 +269,8 @@ scripts/
   data/                  Katzen, Hauszustand, Vorräte, Lieferungen und Schwierigkeitsregeln
   rescue/                Spieler, Katzen-Verhalten, Level-Erzeugung, Gefahren
   home/                  Haus-Simulation, Wegfindung, Einrichtung, Versorgung, Pflege und HUD
-  ui/                    Menü, HUD, virtueller Joystick
+  ui/                    Menü, HUD, virtueller Joystick, Knopf-Fabrik (`ui_kit.gd`),
+                         Modal-Steuerung (`modal_host.gd`)
   dev/                   Entwicklungshilfen (nicht Teil des Spiels)
 resources/               TileSet und UI-Design
 assets/                  Grafik und Ton (siehe CREDITS.md)
@@ -281,8 +282,242 @@ tools/                   Skripte zum Bauen, Prüfen und Erzeugen von Assets
   workflows/android.yml  Signiertes APK und Release nach PR-Merge in main
 ```
 
-### Technische Eckdaten
+### Bedienelemente und Symbole
 
+Knöpfe entstehen nicht mehr an jeder Stelle einzeln, sondern über die Fabrik
+`scripts/ui/ui_kit.gd`. Sie setzt Schriftgröße, Mindesthöhe und Symbol an einem
+Ort. Welcher Knopf welches Symbol bekommt, steht als Daten in
+`scripts/ui/icon_set.gd` — **ein Symbol zu ergänzen ist ein Eintrag dort und
+keine Änderung an der Stelle, an der der Knopf gebaut wird.**
+
+```powershell
+# Symbolatlas erzeugen (assets/sprites/ui_icons.png)
+pwsh tools/generate_ui_icons.ps1
+
+# Nach dem Erzeugen einmal importieren, sonst findet Godot die Datei nicht
+pwsh tools/godot.ps1 --headless --path . --import
+```
+
+Es gibt drei Darstellungsarten. Voreingestellt ist `text`, das Spiel sieht also
+unverändert aus, bis jemand umschaltet:
+
+| Einstellung `button_icons` | Wirkung |
+| --- | --- |
+| `text` | nur Beschriftung (Voreinstellung) |
+| `both` | Symbol neben der Beschriftung |
+| `icon` | nur Symbol, die Beschriftung wandert in den Tooltip |
+
+Zum Ausprobieren gibt es `--buttons=`; die Testläufe schreiben ihre
+Einstellungen in ein Wegwerf-Verzeichnis, deshalb wirkt dort nur der Schalter:
+
+```powershell
+pwsh tools/godot.ps1 --path . -- --start=home --buttons=both
+pwsh tools/screenshot.ps1 -Scene menu -OutputPath menu.png -Buttons icon
+```
+
+Beschriftungen, die sich zur Laufzeit ändern, gehören über
+`UiKit.set_button_text()` gesetzt — eine direkte Zuweisung an `.text` würde in
+der Darstellung `icon` wieder Text einblenden. `tools/test_ui_kit.gd` sichert
+das zusammen mit der Vollständigkeit der Symbolzuordnung ab.
+
+### Sichtbarer Text in einer Datei
+
+Die Beschriftungen der Szenen stehen in `locale/de.csv`, nicht mehr in den
+`.tscn`-Dateien:
+
+```csv
+keys,de
+menu.new_game,Neues Spiel
+hud.close_shop,Schließen · Esc
+```
+
+In der Szene steht nur noch der Schlüssel (`text = "menu.new_game"`).
+`UiKit.adopt(self)` läuft einmal durch den Szenenbaum, setzt den deutschen Text
+ein und hängt gleich das passende Symbol an. Das ersetzt die früheren
+Aufzählungen im Skript:
+
+```gdscript
+# vorher: jede neue Schaltfläche musste hier nachgetragen werden
+for scene_button: Button in [_continue_button, _new_game_button, …]:
+    UiKit.decorate(scene_button)
+
+# heute
+UiKit.adopt(self)
+```
+
+Der Gewinn liegt im Zusammenspiel mehrerer Zweige: `scenes/ui/main_menu.tscn`
+war die Datei mit den viertmeisten Änderungen, und eine `.tscn` ist der
+unangenehmste Ort für einen Merge-Konflikt — Godot schreibt beim Speichern
+Knotenreihenfolge und Ressourcen-IDs neu. Eine Formulierung zu ändern ist jetzt
+eine Zeile in einer CSV.
+
+Neuer Text ist entsprechend **eine neue Zeile**, kein Eingriff in eine
+bestehende Datei. Fehlt sie, stünde im Spiel der rohe Schlüssel; deshalb prüft
+`tools/test_translations.gd` jede Szene gegen die CSV und nennt Schlüssel und
+Datei, bevor etwas ausgeliefert wird.
+
+Zusammengesetzte Texte (`"Münzen: %d"`) bleiben im Code — `UiKit.text()` gibt
+alles unverändert zurück, was nicht wie ein Schlüssel aussieht. Nach einer
+Änderung an `locale/de.csv` einmal importieren:
+
+```powershell
+pwsh tools/godot.ps1 --headless --path . --import
+```
+
+### Fenster über dem Spiel
+
+Pausenfenster, Kaufdialog und die Menüs im Haus laufen über
+`scripts/ui/modal_host.gd`. Der Host kümmert sich um Abdunklung, Sichtbarkeit,
+den gemerkten Fokus und darum, dass Tastatur und Gamepad im Fenster bleiben und
+am Ende der Liste wieder von vorn beginnen. Ein Fenster anzumelden ist eine
+Zeile:
+
+```gdscript
+_modals = ModalHost.new(self)
+_modals.register("pause", _pause_panel, _pause_dim)
+```
+
+Beim Besitzer bleibt nur, was wirklich nur ihn angeht: das Anhalten der
+Spielwelt, die Spielfigur und der Inhalt des Fensters. Den Fokusring liest der
+Host aus dem Szenenbaum — ein Knopf mehr im Fenster braucht deshalb keine
+zweite Änderung an anderer Stelle. `tools/test_modal_host.gd` sichert das ab.
+
+### Inhalt der Fenster im Haus
+
+Was *in* einem Fenster steht, liegt in einer eigenen Datei unter
+`scripts/ui/panels/`. Jedes Fenster erbt von `HomePanel`, liefert eine
+Überschrift und baut seinen Inhalt über einen `PanelBuilder`:
+
+```gdscript
+class_name PausePanel
+extends HomePanel
+
+func title() -> String:
+    return "Pause"
+
+func build(ui: PanelBuilder) -> void:
+    ui.wrapped("Gehen: WASD / Pfeiltasten")
+    ui.button("Weiterspielen", "ResumeButton").pressed.connect(
+        func() -> void: ui.act(&"close"))
+```
+
+Angemeldet wird es mit einer Zeile in `HomeHUD.PANELS`. Ein neues Menü ist
+damit **eine neue Datei plus eine Zeile** – vorher war es ein weiterer Zweig in
+einer langen Fallunterscheidung, ein weiteres Signal am HUD und ein weiteres
+`connect` in der Szene, also drei Änderungen an zwei viel angefassten Dateien.
+
+Ein Fenster kennt das HUD bewusst nicht. Es meldet nur Absichten über
+`ui.act(&"aktion", nutzlast)`; wer sie ausführt, steht an einer einzigen Stelle
+in `HomeScene._on_hud_action`. `tools/test_panels.gd` baut jedes Fenster, drückt
+jeden Knopf und prüft, dass jede gemeldete Aktion dort auch behandelt wird –
+ein Tippfehler im Aktionsnamen fällt so beim Test auf und nicht erst beim
+Klicken.
+
+`ui.button(text, name)` geht durch dieselbe Fabrik wie alle anderen Knöpfe,
+Symbole und Icon-Modi gelten also automatisch auch hier.
+
+### Bedienbare Gegenstände im Haus
+
+Was beim Blick auf einen Gegenstand steht und was `E` dort auslöst, liegt in
+`scripts/home/interactions/` – eine Datei je Gegenstandsart, eingetragen in
+`InteractionRegistry.HANDLERS`:
+
+```gdscript
+class_name LitterInteraction
+extends ItemInteraction
+
+func hint(context: InteractionContext) -> String:
+    return "Katzenklo reinigen\n…"
+
+func perform(context: InteractionContext) -> void:
+    context.item.dirt = 0
+    context.toast("Das Katzenklo ist wieder sauber.")
+    context.save()
+```
+
+Vorher waren für einen neuen bedienbaren Gegenstand fünf Änderungen an
+`home_scene.gd` nötig: die Liste der bedienbaren Arten, der Hinweistext im
+`match`, der Zweig in `interact()` und der in `_interact_item()`. Jetzt kennt
+die Szene keine einzige Gegenstandsart mehr namentlich.
+
+Die Interaktion bekommt über `InteractionContext` nur, was sie wirklich
+braucht – den Gegenstand, ob eine Katze getragen wird, die Simulation und
+Rückmeldungen (`toast`, `supply_result`, `save`). Sie kennt weder HUD noch
+Szene und ist deshalb ohne Spielwelt prüfbar: `tools/test_interactions.gd`
+baut die Hinweise aller Arten ohne eine einzige Szene.
+
+### Spielstand in Abschnitten
+
+`GameState` hält den Spielzustand nicht mehr selbst, sondern setzt ihn aus
+Abschnitten unter `scripts/state/` zusammen – einer je Thema:
+
+| Abschnitt | Inhalt |
+| --- | --- |
+| `ProgressSection` | Münzen, Zähler, letzter Verlust, Schwierigkeitsgrad |
+| `UpgradeSection` | gekaufte Ausbaustufen |
+| `RosterSection` | getragene Katzen und Katzen zu Hause |
+| `SupplySection` | Vorräte, Ladung, laufende Lieferungen |
+| `HomeSection` | Haus und Einrichtung |
+| `StatsSection` | lokale Spielstatistik |
+
+Jeder Abschnitt kennt sein eigenes Format:
+
+```gdscript
+class_name UpgradeSection
+extends SaveSection
+
+func write(data: Dictionary) -> void:
+    data["upgrade_levels"] = levels.duplicate()
+
+func read(data: Dictionary) -> bool:   # nur prüfen
+func commit() -> void:                 # erst danach übernehmen
+```
+
+Dauerhafte Daten für ein neues Feature sind damit **eine neue Datei und ein
+Eintrag in `_sections`** statt vier neuer Zeilen quer durch `reset()`,
+`to_dict()` und `from_dict()`. Genau diese Sammelfunktionen waren der Ort, an
+dem zwei parallel entwickelte Features immer kollidierten.
+
+Das Laden bleibt dabei atomar: erst sagen **alle** Abschnitte über `read()`,
+ob der Spielstand gültig ist, danach übernimmt `commit()` die Werte. Ein
+beschädigter Spielstand hinterlässt keinen halb geladenen Zustand.
+
+`tools/test_save_sections.gd` liest `scripts/state/` vom Datenträger und meldet
+einen Abschnitt, den niemand eingetragen hat – sonst würde er stumm nicht
+gespeichert und der Fortschritt erst beim Spieler fehlen.
+
+Die Pflegeregeln – Abbauraten, Lebensgefahr, Schonfrist und Vermittlung –
+liegen in `scripts/state/needs_simulation.gd`. Welche Ausbauten es gibt, steht
+in `scripts/data/upgrade_catalog.gd`; ein neuer Ausbau ist dort ein Eintrag.
+
+### Szenen rufen sich mit Typ
+
+Szenen, die sich gegenseitig steuern, taten das früher über Zeichenketten:
+
+```gdscript
+_hud.call("set_shop_reachable", at_counter)   # früher
+_hud.set_shop_reachable(at_counter)           # heute
+```
+
+Dafür tragen die beteiligten Knoten einen `class_name` (`RescueHUD`,
+`TouchControls`) und die Verweise sind entsprechend deklariert. Der Gewinn ist
+messbar: `pwsh tools/lint_scripts.ps1` meldet jetzt falsche Argumenttypen und
+falsche Argumentzahlen mit Datei, Zeile und Methodenname, bevor die Szene je
+geladen wird. Beim Aufruf über `call()` fiel derselbe Fehler frühestens auf,
+wenn ein Spieler genau diese Stelle erreichte.
+
+Eine Lücke bleibt: GDScript wertet einen **unbekannten Methodennamen** auf
+einem Knoten nicht als Fehler, weil Objekte zur Laufzeit Methoden bekommen
+können. Ein Tippfehler im Namen fällt also weiterhin erst den Tests auf – dafür
+gibt es `--test`, `--playtest` und `--smoketest`.
+
+Bewusst als `call()` belassen sind die zwei Stellen, an denen der Aufruf
+wirklich optional ist und mit `has_method()` abgesichert wird:
+`scene_router.gd` fragt Szenen nach `prepare_to_leave`, und
+`scripts/dev/screenshot_capture.gd` betätigt für Bildschirmfotos gezielt
+interne Funktionen fremder Szenen.
+
+### Technische Eckdaten
 - **Godot 4.7.2**, GDScript
 - Renderer `gl_compatibility` (OpenGL ES 3.0) – größte Abdeckung auf Android
 - Basisauflösung 640 × 360, Streckmodus `canvas_items` mit `expand`, damit
@@ -327,6 +562,7 @@ Die Katzen-Sprites entstehen aus Pixelkarten und lassen sich einzeln neu erzeuge
 pwsh tools/generate_cat_sprites.ps1
 pwsh tools/generate_tileset.ps1
 pwsh tools/generate_icons.ps1
+pwsh tools/generate_ui_icons.ps1
 pwsh tools/generate_home_assets.ps1
 ```
 
@@ -349,8 +585,9 @@ pwsh tools/godot.ps1 --headless --path . --script res://tools/check_project.gd
 # Spiellogik testen (Retten, Pflege, Vorräte, Lieferungen, Modi, Spielstände, Level)
 pwsh tools/godot.ps1 --headless --path . -- --test
 
-# Nur Vorräte, Lieferungen, Pflegefolgen und deren Spielstandmigration
-pwsh tools\godot.ps1 --headless --path . -- --test --suite=supplies
+# Nur einzelne Regelsuiten; Namen sind auch kombinierbar
+pwsh tools\godot.ps1 --headless --path . -- --test --suite=supplies,stats
+pwsh tools\godot.ps1 --headless --path . -- --test --suite=texts
 
 # Spieltest: Katze einfangen und zu Hause mit echter Steuerung versorgen
 pwsh tools/godot.ps1 --headless --path . -- --playtest
@@ -362,8 +599,13 @@ pwsh tools\godot.ps1 --headless --path . -- --playtest --suite=shop
 # Durchlauf: alle Szenen und Knoepfe einmal anfassen
 pwsh tools/godot.ps1 --headless --path . -- --smoketest
 
-# Nur Hauptmenü und alle drei Moduswechsel beim Neustart
-pwsh tools\godot.ps1 --headless --path . -- --smoketest --suite=menus
+# Nur einzelne Teile des Durchlaufs; Namen sind auch kombinierbar
+pwsh tools\godot.ps1 --headless --path . -- --smoketest --suite=home
+pwsh tools\godot.ps1 --headless --path . -- --smoketest --suite=menu,analytics
+
+# Derselbe Durchlauf ohne jede Beschriftung; deckt auf, wo ein Test
+# noch am Knopftext statt am Knotennamen haengt
+pwsh tools\godot.ps1 --headless --path . -- --smoketest --buttons=icon
 
 # Alle Skripte auf Übersetzungsfehler prüfen
 pwsh tools/lint_scripts.ps1
@@ -440,6 +682,46 @@ Der **Linter** ist nötig, weil Godot Parse-Fehler erst meldet, wenn ein Skript
 zur Laufzeit gebraucht wird. Er übersetzt jede Datei einzeln mit
 `godot --check-only`; Meldungen, die nur an den zur Prüfzeit fehlenden Autoloads
 hängen, werden herausgefiltert.
+
+Der **Durchlauf** besteht aus mehreren Suiten, die einzeln in `tools/smoke/`
+liegen. `tools/test_smoke.gd` startet sie nur; jede erbt von `SmokeSuite` und
+bringt die gemeinsamen Hilfen (Szene laden, Knopf drücken, Fokus prüfen,
+Touch-Geste senden) bereits mit:
+
+| Suite | Prüft |
+|---|---|
+| `menu` | Hauptmenü, dessen Aufteilung und Fokus |
+| `analytics` | Einwilligung, Widerruf und Erststart |
+| `home` | Katzenhaus: Pflege, Vermittlung, Hinweise, Touch-Einrichtung |
+| `rescue` | Rettungs-Level und Wegweiser nach Hause |
+| `flow` | Szenenwechsel, echter Weg durch die Oberfläche, Moduswahl, Weiterspielen |
+
+Ein neuer Durchlauf ist damit **eine neue Datei** in `tools/smoke/` und **eine
+Zeile** in `SUITES`. Die Reihenfolge in `SUITES` ist bedeutsam: die Suiten
+hinterlassen Spielstände, mit denen die späteren weiterarbeiten.
+
+Die **Regeltests** (`--test`) sind genauso aufgebaut. `tools/test_gameplay.gd`
+enthält nur noch die Grundregeln selbst; alles andere liegt in eigenen Dateien
+und steht in derselben Art Liste:
+
+| Name | Inhalt |
+| --- | --- |
+| `ui` | Knopf-Fabrik und Symbolzuordnung |
+| `modals` | Fenster über dem Spiel |
+| `panels` | Inhalt der Fenster im Haus |
+| `interactions` | bedienbare Gegenstände im Haus |
+| `sections` | Abschnitte des Spielstands |
+| `texts` | Übersetzungsschlüssel gegen `locale/de.csv` |
+| `home` | Pflege, Adoption und Wohlbefinden |
+| `supplies` | Vorräte, Lieferungen und deren Spielstandmigration |
+| `stats` | lokale Spielstatistik |
+| `shop` | Einkauf und Münzen |
+| `analytics` | Einwilligung, Warteschlange und Versand |
+
+Jede Suite ist ein `RefCounted` mit
+`run(tree: SceneTree) -> PackedStringArray`. Kommt etwas anderes als eine Liste
+zurück, gilt die Suite als abgebrochen — ein Skriptfehler darin kann so nicht
+als „bestanden" durchrutschen.
 
 ### Fehlerberichte
 

@@ -1,6 +1,10 @@
 class_name AnalyticsConsent
 extends Control
 
+## Der Dienst wird hereingereicht statt als Autoload geholt, damit die Tests
+## eine eigene Instanz mit eigener Datei benutzen koennen.
+const AnalyticsService := preload("res://scripts/autoload/analytics_manager.gd")
+
 const SUMMARY := (
 	"Mit deiner Erlaubnis zählen wir Spielzeit und Spielaktionen, zum Beispiel Katzenrettungen. "
 	+ "Das hilft uns, 4cats zu verbessern.\n\n"
@@ -10,7 +14,7 @@ const SUMMARY := (
 	+ "Optionen > Nutzungsanalyse ändern."
 )
 
-var _service: Node
+var _service: AnalyticsService
 var _message: RichTextLabel
 var _status: Label
 var _details: Button
@@ -50,14 +54,10 @@ func _ready() -> void:
 	_message.add_theme_font_size_override("normal_font_size", 12)
 	_message.selection_enabled = true
 	box.add_child(_message)
-	_details = Button.new()
-	_details.name = "PrivacyDetails"
+	_details = UiKit.button("", "PrivacyDetails", box, 12, 24)
 	_details.flat = true
 	_details.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_details.custom_minimum_size.y = 24
-	_details.add_theme_font_size_override("font_size", 12)
 	_details.pressed.connect(_toggle_details)
-	box.add_child(_details)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_font_size_override("font_size", 11)
@@ -65,34 +65,29 @@ func _ready() -> void:
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 10)
 	box.add_child(buttons)
-	_accept = Button.new()
-	_accept.name = "Accept"
+	_accept = UiKit.button("", "Accept", buttons, 0, 30)
 	_accept.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_accept.custom_minimum_size.y = 30
-	buttons.add_child(_accept)
-	_decline = Button.new()
-	_decline.name = "Decline"
+	_decline = UiKit.button("", "Decline", buttons, 0, 30)
 	_decline.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_decline.custom_minimum_size.y = 30
-	buttons.add_child(_decline)
 	_accept.pressed.connect(_choose.bind(true))
 	_decline.pressed.connect(_decline_choice)
 	hide()
 
 
-func present(service: Node) -> void:
+func present(service: AnalyticsService) -> void:
 	_service = service
-	var available: bool = service.call("is_available")
-	var consent: bool = service.call("has_consent")
+	var available := service.is_available()
+	var consent := service.has_consent()
 	_show_details = false
 	_refresh_message()
-	_status.text = String(service.get("last_error"))
+	_status.text = service.last_error
 	if not available and _status.text.is_empty():
 		_status.text = "In diesem Build ist die Nutzungsanalyse nicht verfügbar."
 	_status.visible = not _status.text.is_empty()
-	_accept.text = "Weiter erlauben" if consent else "Ja, erlauben"
+	UiKit.set_button_text(_accept, "Weiter erlauben" if consent else "Ja, erlauben")
 	_accept.disabled = not available
-	_decline.text = "Widerrufen" if consent else ("Nein danke" if available else "Schließen")
+	UiKit.set_button_text(_decline,
+		"Widerrufen" if consent else ("Nein danke" if available else "Schließen"))
 	if not visible:
 		_previous_focus = get_viewport().gui_get_focus_owner()
 	_configure_focus(available)
@@ -106,9 +101,10 @@ func _toggle_details() -> void:
 
 
 func _refresh_message() -> void:
-	_message.text = String(_service.call("privacy_text")) if _show_details else SUMMARY
+	_message.text = _service.privacy_text() if _show_details else SUMMARY
 	_message.scroll_to_line(0)
-	_details.text = "Zurück zur Kurzfassung" if _show_details else "Mehr zum Datenschutz"
+	UiKit.set_button_text(_details,
+		"Zurück zur Kurzfassung" if _show_details else "Mehr zum Datenschutz")
 
 
 func _configure_focus(available: bool) -> void:
@@ -125,31 +121,31 @@ func _configure_focus(available: bool) -> void:
 
 
 func dismiss() -> void:
-	if _service != null and bool(_service.call("needs_consent")):
+	if _service != null and _service.needs_consent():
 		_choose(false)
 	else:
 		_close()
 
 
 func _decline_choice() -> void:
-	if bool(_service.call("is_available")):
+	if _service.is_available():
 		_choose(false)
 	else:
 		_close()
 
 
 func _choose(allow: bool) -> void:
-	if allow and bool(_service.call("has_consent")):
+	if allow and _service.has_consent():
 		_close()
 		return
-	if bool(_service.call("set_consent", allow)):
+	if _service.set_consent(allow):
 		_close()
 	else:
-		_status.text = String(_service.get("last_error"))
+		_status.text = _service.last_error
 		_status.show()
 		_refresh_message()
-		_accept.text = "Ja, erlauben"
-		_decline.text = "Nein danke"
+		UiKit.set_button_text(_accept, "Ja, erlauben")
+		UiKit.set_button_text(_decline, "Nein danke")
 
 
 func _close() -> void:

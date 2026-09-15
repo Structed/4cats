@@ -22,8 +22,8 @@ const DOG_COUNT := 3
 @onready var _entities: Node2D = $Entities
 @onready var _home_zone: Area2D = $HomeZone
 @onready var _camera: Camera2D = $Player/Camera
-@onready var _hud: Control = $UI/HUD
-@onready var _touch_controls: CanvasLayer = $TouchControls
+@onready var _hud: RescueHUD = $UI/HUD
+@onready var _touch_controls: TouchControls = $TouchControls
 
 var _generator: LevelGenerator
 var _home_cell: Vector2i
@@ -35,6 +35,7 @@ var _leaving: bool = false
 func _ready() -> void:
 	GameState.simulation_active = true
 	add_to_group("rescue_level")
+	UiKit.adopt(self)
 
 	_generator = LevelGenerator.new(MAP_WIDTH, MAP_HEIGHT)
 	_generator.generate(_ground, _objects)
@@ -52,7 +53,7 @@ func _ready() -> void:
 	# Der Touch-Aktionsknopf setzt nur den Aktionszustand, erzeugt aber kein
 	# Eingabeereignis -- deshalb hier zusaetzlich direkt verbinden.
 	_touch_controls.connect("action_pressed", _try_pick_up)
-	_hud.call("set_hint", "Geh zu einer Katze und warte kurz – nur Rennen verschreckt sie.")
+	_hud.set_hint("Geh zu einer Katze und warte kurz – nur Rennen verschreckt sie.")
 
 
 func _process(_delta: float) -> void:
@@ -60,8 +61,8 @@ func _process(_delta: float) -> void:
 		return
 	var at_counter: bool = _shop.can_interact(_player)
 	_shop.set_highlighted(at_counter)
-	_touch_controls.call("set_action_label", "Einkaufen" if at_counter else "Katze aufheben")
-	_hud.call("set_shop_reachable", at_counter)
+	_touch_controls.set_action_label("Einkaufen" if at_counter else "Katze aufheben")
+	_hud.set_shop_reachable(at_counter)
 
 
 func _physics_process(_delta: float) -> void:
@@ -86,13 +87,13 @@ func _try_pick_up() -> void:
 	# Ereignis, InputMap-Abfrage und Touch-Signal gehoeren zu derselben Aktion.
 	_interact_consumed = true
 	if _shop.can_interact(_player):
-		_hud.call("open_shop")
+		_hud.open_shop()
 		return
 	var reachable: Array[Cat] = _player.cats_in_reach()
 	if reachable.is_empty():
 		return
 	if not GameState.can_carry_more():
-		_hud.call("set_hint", "Dein Tragekorb ist voll – bring sie erst nach Hause.")
+		_hud.set_hint("Dein Tragekorb ist voll – bring sie erst nach Hause.")
 		return
 	reachable[0].pick_up()
 
@@ -117,7 +118,7 @@ func _setup_shop() -> void:
 	var cargo := SupplyCargoActor.new()
 	cargo.name = "SupplyCargo"
 	_player.add_child(cargo)
-	_hud.call("set_shop_context", _player, _shop, _touch_controls)
+	_hud.set_shop_context(_player, _shop, _touch_controls)
 
 
 func _setup_camera() -> void:
@@ -136,7 +137,7 @@ func _setup_home_navigation() -> void:
 		$TouchControls/Root/ActionButton,
 		$TouchControls/Root/SprintButton,
 	]
-	_hud.call("set_home_navigation", _player, _home_zone, obstacles)
+	_hud.set_home_navigation(_player, _home_zone, obstacles)
 
 
 func _spawn_cats() -> void:
@@ -188,7 +189,7 @@ func _on_home_zone_entered(body: Node2D) -> void:
 	if delivered <= 0:
 		return
 	AudioManager.play_sfx("deliver")
-	_hud.call("set_hint", "%d Katze(n) sicher zu Hause!" % delivered)
+	_hud.set_hint("%d Katze(n) sicher zu Hause!" % delivered)
 	SaveManager.save_game()
 
 
@@ -200,7 +201,7 @@ func _on_home_zone_entered(body: Node2D) -> void:
 ## deshalb bis zum Ende des Physikschritts.
 func on_cat_escaped(data: CatData, origin: Vector2) -> void:
 	_spawn_escaped_cat.call_deferred(data, origin)
-	_hud.call("set_hint", "Oje, %s ist erschrocken und weggelaufen!" % data.cat_name)
+	_hud.set_hint("Oje, %s ist erschrocken und weggelaufen!" % data.cat_name)
 
 
 func _spawn_escaped_cat(data: CatData, origin: Vector2) -> void:
@@ -224,4 +225,4 @@ func prepare_to_leave() -> void:
 	GameState.simulation_active = false
 	_player.velocity = Vector2.ZERO
 	_player.set_physics_process(false)
-	_hud.call("prepare_to_leave")
+	_hud.prepare_to_leave()
